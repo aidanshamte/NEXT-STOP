@@ -1,0 +1,13 @@
+{
+  "name": "next-stop-api",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node index.mjs",
+    "test": "node --test ../tests/api.test.mjs",
+    "setup": "node setup.mjs"
+  }
+}
