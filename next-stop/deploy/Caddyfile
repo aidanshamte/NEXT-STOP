@@ -51,7 +51,7 @@
 		# The live map frame (sandboxed, opaque origin) gets its own narrow policy.
 		@mapframe path /map.html
 		header @mapframe {
-			Content-Security-Policy "default-src 'none'; script-src 'unsafe-inline' https://unpkg.com/maplibre-gl@4.7.1/; style-src 'unsafe-inline' https://unpkg.com/maplibre-gl@4.7.1/; img-src data: blob: https://tiles.openfreemap.org; connect-src https://tiles.openfreemap.org; worker-src blob:; child-src blob:; base-uri 'none'; form-action 'none'; frame-ancestors https://{host}"
+			Content-Security-Policy "default-src 'none'; script-src 'unsafe-inline' https://unpkg.com/maplibre-gl@4.7.1/ blob:; style-src 'unsafe-inline' https://unpkg.com/maplibre-gl@4.7.1/; img-src data: blob: https://tiles.openfreemap.org; connect-src https://tiles.openfreemap.org; worker-src blob:; child-src blob:; base-uri 'none'; form-action 'none'; frame-ancestors https://{host}"
 			Permissions-Policy "geolocation=(), camera=(), microphone=()"
 		}
 		@appdoc not path /map.html
