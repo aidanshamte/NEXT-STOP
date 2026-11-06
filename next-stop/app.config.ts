@@ -65,6 +65,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       package: APP_ID,
+      // Inherited from libraries but unused; blocking them keeps privacy disclosures accurate.
+      blockedPermissions: [
+        'android.permission.SYSTEM_ALERT_WINDOW',
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+        'android.permission.USE_BIOMETRIC',
+        'android.permission.USE_FINGERPRINT',
+      ],
       adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#11243A' },
       ...(googleServicesFile ? { googleServicesFile } : {}),
     },

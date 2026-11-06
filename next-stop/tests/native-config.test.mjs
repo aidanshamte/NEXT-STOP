@@ -22,6 +22,12 @@ for (const local of [true, false])
     const permissions = manifest['uses-permission'].map((item) => item.$['android:name']);
     assert.ok(permissions.includes('android.permission.ACCESS_BACKGROUND_LOCATION'));
     assert.ok(permissions.includes('android.permission.FOREGROUND_SERVICE_LOCATION'));
+    assert.ok(permissions.includes('android.permission.POST_NOTIFICATIONS'));
+    const blocked = manifest['uses-permission']
+      .filter((item) => item.$['tools:node'] === 'remove')
+      .map((item) => item.$['android:name']);
+    for (const name of ['SYSTEM_ALERT_WINDOW', 'WRITE_EXTERNAL_STORAGE', 'USE_BIOMETRIC'])
+      assert.ok(blocked.includes(`android.permission.${name}`), `${name} blocked`);
     assert.equal(config.extra.allowLocalHttp, local);
   });
 

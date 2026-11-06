@@ -2,7 +2,18 @@
 
 This puts the API on a public HTTPS address so installed phone apps work over any cellular or Wi-Fi connection, with no laptop, shared network or Expo server involved.
 
-**Status:** the templates, scripts and workflows are in the repository and tested locally where possible (see VALIDATION.md). Nothing has been provisioned yet. Provisioning creates billable resources, so you run it after reviewing the costs below.
+**Status (2026-11-06): deployed.**
+
+|                     |                                                                                                                                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API                 | `https://nextstop-api.northcentralus.cloudapp.azure.com` (Let's Encrypt certificate, HSTS, WSS at `/realtime`)                                                                                     |
+| Region              | North Central US (the subscription policy allows only westus, northcentralus, belgiumcentral, denmarkeast, norwayeast)                                                                             |
+| Resource group      | `nextstop-pilot`: VM `nextstop-api` (Standard_B2ats_v2), data disk `nextstop-data`, storage `nextstopdye677nvmoxjw`, email `nextstop-email` + `nextstop-comm`                                      |
+| Email               | Azure Communication Services, Azure-managed domain, sender `DoNotReply@24e02b76-9117-4a67-82ca-956637a1f13f.azurecomm.net`, authenticated with the VM's managed identity (no SMTP password exists) |
+| Deploys             | GitHub Actions _Deploy API (Azure)_: OIDC app `nextstop-github-deploy`, roles limited to this VM and storage account                                                                               |
+| Subscription safety | Azure for Students, spending limit **On**: resources stop instead of billing past the credit                                                                                                       |
+
+The same subscription also contains other projects (`mnemba-azure`, `fairfieldUCyberDemo`); NEXT STOP does not touch them, but they share the credit.
 
 ## What gets created and why
 
@@ -97,7 +108,7 @@ ssh -i ~/.ssh/nextstop_azure nextstopadmin@<dnsLabel>.<region>.cloudapp.azure.co
 
 ### 5. Put secrets on the server (never in Git, never in chat)
 
-Set up email first using [AUTH-SETUP.md](AUTH-SETUP.md). For an Azure-native sender, use Azure Communication Services Email with SMTP: create an Email Communication Service with an Azure-managed domain, connect it to a Communication Services resource, then [create SMTP credentials](https://learn.microsoft.com/azure/communication-services/quickstarts/email/send-email-smtp/smtp-authentication). The host is `smtp.azurecomm.net`, port 587, and the password is an Entra app client secret. New email resources start with low sending limits; request a higher quota before a large pilot.
+Email in this deployment uses Azure Communication Services through the VM's managed identity: set `ACS_EMAIL_ENDPOINT` and `ACS_EMAIL_SENDER` and grant the VM identity _Communication and Email Service Owner_ on the Communication Services resource. No secret is involved. Azure-managed sender domains have low sending quotas; request a higher quota or add a custom domain before a large pilot. Alternatively, use SMTP (AUTH-SETUP.md). With ACS SMTP: create an Email Communication Service with an Azure-managed domain, connect it to a Communication Services resource, then [create SMTP credentials](https://learn.microsoft.com/azure/communication-services/quickstarts/email/send-email-smtp/smtp-authentication). The host is `smtp.azurecomm.net`, port 587, and the password is an Entra app client secret. New email resources start with low sending limits; request a higher quota before a large pilot.
 
 Then, on the VM:
 
@@ -176,7 +187,7 @@ az ad sp create --id "$APP_ID"
 az ad app federated-credential create --id "$APP_ID" --parameters '{
   "name": "github-production",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:aidanshamte/NEXT-STOP:environment:production",
+  "subject": "repo:aidanshamte@107291645/NEXT-STOP@1446775617:environment:production",
   "audiences": ["api://AzureADTokenExchange"]
 }'
 SP_ID=$(az ad sp show --id "$APP_ID" --query id -o tsv)
@@ -184,7 +195,7 @@ SP_ID=$(az ad sp show --id "$APP_ID" --query id -o tsv)
 az deployment group create -g nextstop-pilot -f deploy/azure/main.bicep -p @deploy/azure/main.parameters.json -p deployerPrincipalId=$SP_ID
 ```
 
-If your university tenant blocks app registration, keep using the SSH deployment in step 6.
+GitHub now issues OIDC tokens whose subject includes numeric owner and repository ids (`repo:owner@id/name@id:...`). The federated credential must match that exact subject; the classic `repo:owner/name` form is rejected with AADSTS700213. If your university tenant blocks app registration, keep using the SSH deployment in step 6.
 
 In GitHub, create an environment named `production` (Settings → Environments; adding yourself as a required reviewer is a good safeguard). Then add these **repository variables** (Settings → Secrets and variables → Actions → Variables). None of them are secrets:
 

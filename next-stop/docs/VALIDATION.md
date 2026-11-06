@@ -1,6 +1,6 @@
 # Validation record
 
-Latest update: 2026-11-05, v0.4 source (commits `8d703a3` → `ed1481d` and docs). Each section says what kind of evidence it is.
+Latest update: 2026-11-06. Each section says what kind of evidence it is.
 
 ## 1. Passed: automated tests (this workspace, Windows, Node 24.21)
 
@@ -29,17 +29,26 @@ Tests use synthetic identities, an injected mail-delivery function and an inject
 
   This is a web rendering check, not a native-device check.
 
+## 2b. Passed: real Azure deployment (2026-11-06, observed from outside Azure)
+
+- **Provisioned** `nextstop-pilot` in North Central US from `deploy/azure/main.bicep`; `what-if` reviewed first; deployment state `Succeeded`. Subscription: Azure for Students, spending limit On; about $90.64 credit at the time.
+- **VM bootstrap:** cloud-init `done` with no errors; Node 24.22, Caddy 2.11. The database mount `/var/lib/next-stop` is the 8 GiB persistent data disk on LUN 0 (no temporary disk on this size).
+- **Public HTTPS:** `https://nextstop-api.northcentralus.cloudapp.azure.com/health` → `{"ok":true,...,"schema":3}`. Let's Encrypt certificate for the hostname, valid until 2027-02-04. HTTP redirects with 308; HSTS present.
+- **Secure WebSocket:** `wss://…/realtime` connected over TLS from this workstation; an invalid token was closed with 4001.
+- **Deploys:** first release over SSH (`release.sh`: checksum, migration 0→3, healthy). Then three GitHub Actions runs of _Deploy API (Azure)_ succeeded end to end: OIDC login, Blob upload, Run Command install, and a public `/health` check of the new release id. The first run failed on the OIDC subject format (fixed; see DEPLOY-AZURE.md).
+- **Backups:** the systemd backup wrote a verified local copy and uploaded it to Blob storage with the managed identity ("Backup uploaded to Azure Blob Storage"). The daily timer is scheduled.
+- **Restore drill on the VM:** with the documented command, a verified backup was restored, the prior database was kept as `next-stop.db.pre-restore-…`, and the service returned healthy. This drill found and fixed a real bug: the CLI silently did nothing when run through the release symlink. A regression test was added.
+- **Email provider wiring:** on the VM, the managed identity obtained a token and ACS accepted and completed a send to a reserved test address (`example.com`). Delivery to a real inbox: see section 3.
+
 ## 3. Not yet tested: needs the owner's accounts, money or devices
 
-- **Azure:** not provisioned. The Bicep template was **not compiled** here (downloading the Bicep CLI was blocked); it compiles in CI (`az bicep build`) and with `az deployment group what-if`. cloud-init, Caddy certificate issuance, systemd units, Run Command deploy, managed-identity Blob access, automatic rollback on a real VM, budget and alert creation: all **untested**.
-- **GitHub Actions:** workflows are committed but not pushed; none has run. Earlier CI never ran because the workflow sat under `next-stop/.github`.
-- **Email:** no SMTP provider configured; no real code has been delivered.
+- **Automatic rollback on a failing release** has not been triggered on the VM (only healthy releases were deployed). Budget/alert emails have not fired.
+- **Email to a real inbox:** not yet confirmed. The first real signup will show it.
 - **Google sign-in:** no OAuth clients configured; no real Google login.
 - **Native builds:** no signed APK/IPA built; no install on a phone; no GPS from a physical device; background/locked-screen tracking unverified; battery impact unknown.
 - **The milestone itself (ACCEPTANCE.md):** not run.
 - **Client reconnection logic:** `src/services/realtime.ts` backoff and `useLiveSnapshot` resume refresh have no automated test; they need device testing for interruptions (ACCEPTANCE #8–9).
 - **Push notifications:** not implemented.
-- **Restore drill on the VM:** not run.
 
 ## Exact next steps for the owner
 
