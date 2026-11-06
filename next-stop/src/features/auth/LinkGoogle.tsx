@@ -49,7 +49,7 @@ export default function LinkGoogle({
         }}
         onError={setError}
       />
-      {error && (
+      {!!error && (
         <Text accessibilityRole="alert" style={{ color: C.coral, fontSize: 12 }}>
           {error}
         </Text>

@@ -16,7 +16,7 @@ export default function Notices({
 }) {
   return (
     <>
-      {error && (
+      {!!error && (
         <View style={[s.notice, { backgroundColor: '#FFF0E9' }]}>
           <Icon name="alert-circle-outline" color={C.coral} />
           <Text accessibilityRole="alert" style={[s.body, { flex: 1, color: C.coral }]}>
@@ -24,7 +24,7 @@ export default function Notices({
           </Text>
         </View>
       )}
-      {message && (
+      {!!message && (
         <View style={s.notice}>
           <Icon name="checkmark-circle-outline" color={C.green} />
           <Text accessibilityRole="alert" style={[s.body, { flex: 1, color: C.green }]}>
@@ -35,7 +35,7 @@ export default function Notices({
           </Pressable>
         </View>
       )}
-      {syncError && (
+      {!!syncError && (
         <View style={[s.notice, { backgroundColor: '#FFF0E9' }]}>
           <Icon name="cloud-offline-outline" color={C.coral} />
           <Text style={[s.body, { flex: 1 }]}>

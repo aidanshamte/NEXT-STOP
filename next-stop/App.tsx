@@ -455,12 +455,13 @@ function Workspace() {
                   </Text>
                 </View>
                 <View style={[s.contentGrid, desktop && { flexDirection: 'row' }]}>
-                  <View style={{ flex: 1.4, gap: 20 }}>
+                  {/* Flex weights size the side-by-side desktop columns; stacked on phones they would stretch height. */}
+                  <View style={[{ gap: 20 }, desktop && { flex: 1.4 }]}>
                     {shuttleSelector}
                     <ShuttleMapCard stops={stops} trip={trip} />
                     {requestList}
                   </View>
-                  <View style={{ flex: 1, gap: 20 }}>
+                  <View style={[{ gap: 20 }, desktop && { flex: 1 }]}>
                     {roleControls}
                     <View style={s.darkCard}>
                       <Icon name="shield-checkmark-outline" size={25} color={C.mint} />

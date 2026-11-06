@@ -171,7 +171,7 @@ export default function JoinInstitution({
                 )}
             </View>
           )}
-          {error && (
+          {!!error && (
             <Text
               accessibilityRole="alert"
               style={{ color: '#AD3B2B', fontSize: 12, lineHeight: 19 }}

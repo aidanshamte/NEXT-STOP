@@ -121,7 +121,10 @@ export default function AuthScreen({
   initialError?: string;
   onRetry?: () => Promise<void>;
 }) {
-  const wide = useWindowDimensions().width > 960;
+  const { width } = useWindowDimensions();
+  const wide = width > 960;
+  // On small phones only the current step is labelled, so the progress row stays on one line.
+  const compactSteps = width < 420;
   const [screen, setScreen] = useState<Screen>('signup'),
     [name, setName] = useState(''),
     [email, setEmail] = useState(''),
@@ -314,6 +317,7 @@ export default function AuthScreen({
                   {['Create account', 'Verify email', 'Join community'].map((value, i) => (
                     <View
                       key={value}
+                      accessibilityLabel={`Step ${i + 1} of 3: ${value}`}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                     >
                       <View
@@ -335,7 +339,9 @@ export default function AuthScreen({
                           {i + 1}
                         </Text>
                       </View>
-                      <Text style={{ fontSize: 9, color: C.muted }}>{value}</Text>
+                      {(!compactSteps || i === (screen === 'verify' ? 1 : 0)) && (
+                        <Text style={{ fontSize: 9, color: C.muted }}>{value}</Text>
+                      )}
                       {i < 2 && (
                         <View
                           style={{
@@ -369,7 +375,7 @@ export default function AuthScreen({
                   <Text style={[a.heading, { fontSize: wide ? 33 : 29 }]}>{heading}</Text>
                   <Text style={a.description}>{description}</Text>
                 </View>
-                {initialError && (
+                {!!initialError && (
                   <View style={a.error}>
                     <Text style={a.errorText}>{initialError}</Text>
                     {onRetry && (
@@ -496,12 +502,12 @@ export default function AuthScreen({
                     </Text>
                   </Pressable>
                 )}
-                {error && (
+                {!!error && (
                   <View accessibilityRole="alert" style={a.error}>
                     <Text style={a.errorText}>{error}</Text>
                   </View>
                 )}
-                {notice && (
+                {!!notice && (
                   <View style={[a.error, { backgroundColor: C.mint }]}>
                     <Text style={[a.errorText, { color: C.green }]}>{notice}</Text>
                   </View>
@@ -644,8 +650,11 @@ const a = StyleSheet.create({
   form: { maxWidth: 400, width: '100%', alignSelf: 'center', gap: 19 },
   stepRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'center',
+    rowGap: 8,
+    columnGap: 6,
     marginBottom: 15,
   },
   stepDot: {

@@ -86,6 +86,8 @@ export default function GoogleButton({ clientId, disabled, onCredential, onError
     };
   }, [clientId, revision]);
   if (loadError) return <Text style={{ fontSize: 12, color: '#72808D' }}>{loadError}</Text>;
+  // Without a configured client there is no Google button; the screen explains the email path.
+  if (!clientId) return null;
   return (
     <View
       style={{
