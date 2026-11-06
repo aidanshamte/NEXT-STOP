@@ -39,6 +39,16 @@ Goal: a verified student and an approved driver, using installed apps on separat
 - [ ] Build `preview` for Android (and iOS) and run ACCEPTANCE.md on two phones on different networks
 - [ ] Push the local commits to GitHub so CI runs (the owner decides when)
 
+## Fairfield University routes (imported 2026-11-06)
+
+- [x] Four services imported from the posted sign in printed order (Campus 13 incl. repeated Barone visit and on-demand 10-13, Town 9, Bellarmine 3, 1720 Post Road 2): 23 unique stops, all **drafts**
+- [ ] Confirm each boarding point in Dispatch → Routes and stops (stand at the stop, use GPS). No authoritative coordinates were available, so no pins were guessed
+- [ ] Decide whether the existing manual stop "The Circle" is the Barone Campus Center Traffic Circle (if so, pin Barone there and retire the manual stop)
+- [ ] Assign each shuttle its route
+- Schedules, driving paths and arrival estimates are deliberately not imported
+
+To re-import after the sign changes: edit `server/imports/fairfield-university-shuttles.json`, deploy, then on the VM run `node server/import-routes.mjs --institution <id> --file server/imports/fairfield-university-shuttles.json --dry-run` and then without `--dry-run`. Confirmed stops are never changed by an import.
+
 ## Milestone 2: rider experience and notifications
 
 - [ ] "Approaching" status that the driver sets explicitly (no inferred ETA). Students see driver-set states only
