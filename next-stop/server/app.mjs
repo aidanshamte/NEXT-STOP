@@ -150,7 +150,7 @@ export function createApp({
           fail(400, `Invalid ${key}.`);
         return body[key].trim();
       };
-      if (path === '/health' && req.method === 'GET') {
+      if (path === '/health' && (req.method === 'GET' || req.method === 'HEAD')) {
         let database = false;
         try {
           database = db.prepare('SELECT 1 AS ok').get().ok === 1;

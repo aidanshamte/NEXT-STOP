@@ -25,7 +25,8 @@
       "distribution": "internal",
       "environment": "preview",
       "env": {
-        "ALLOW_LOCAL_HTTP": "0"
+        "ALLOW_LOCAL_HTTP": "0",
+        "EXPO_PUBLIC_API_URL": "https://nextstop-api.northcentralus.cloudapp.azure.com"
       },
       "android": {
         "buildType": "apk"
@@ -35,7 +36,8 @@
       "environment": "production",
       "autoIncrement": true,
       "env": {
-        "ALLOW_LOCAL_HTTP": "0"
+        "ALLOW_LOCAL_HTTP": "0",
+        "EXPO_PUBLIC_API_URL": "https://nextstop-api.northcentralus.cloudapp.azure.com"
       }
     }
   },
