@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { Button, Card, Field, Tag, s } from '../../components/UI';
 import LinkGoogle from '../auth/LinkGoogle';
@@ -17,6 +17,7 @@ export default function AccountPanel({
   mutate,
   onGoogleLinked,
   onSignOut,
+  onDeleteAccount,
 }: {
   me: Me;
   role: Role;
@@ -28,7 +29,11 @@ export default function AccountPanel({
   mutate: Mutate;
   onGoogleLinked: () => Promise<void>;
   onSignOut: () => void;
+  onDeleteAccount: (confirmation: { password?: string; confirmEmail?: string }) => Promise<void>;
 }) {
+  const [deleting, setDeleting] = useState(false);
+  const [confirmation, setConfirmation] = useState('');
+  const passwordAccount = me.user.password_enabled !== 0;
   return (
     <Card>
       <Text style={s.title}>Your account</Text>
@@ -71,6 +76,50 @@ export default function AccountPanel({
         </>
       )}
       <Button label="Stop GPS and sign out" secondary disabled={busy} onPress={onSignOut} />
+      <View style={s.divider} />
+      {!deleting ? (
+        <Button
+          secondary
+          icon="trash-outline"
+          label="Delete my account"
+          disabled={busy}
+          onPress={() => setDeleting(true)}
+        />
+      ) : (
+        <>
+          <Text style={s.heading}>Delete your account?</Text>
+          <Text style={s.body}>
+            This permanently removes your account, institution memberships, trip sharing and ride
+            history from NEXT STOP. It cannot be undone. Drivers must end service first.
+          </Text>
+          <Field
+            label={passwordAccount ? 'Current password' : 'Type your account email to confirm'}
+            value={confirmation}
+            onChange={setConfirmation}
+            secure={passwordAccount}
+            keyboardType={passwordAccount ? 'default' : 'email-address'}
+          />
+          <Button
+            icon="trash-outline"
+            label="Permanently delete account"
+            disabled={busy || !confirmation}
+            onPress={() =>
+              void onDeleteAccount(
+                passwordAccount ? { password: confirmation } : { confirmEmail: confirmation },
+              )
+            }
+          />
+          <Button
+            secondary
+            label="Keep my account"
+            disabled={busy}
+            onPress={() => {
+              setDeleting(false);
+              setConfirmation('');
+            }}
+          />
+        </>
+      )}
     </Card>
   );
 }

@@ -7,6 +7,7 @@ export interface Me {
     email: string;
     email_verified?: number;
     google_linked?: number;
+    password_enabled?: number;
   };
   memberships: Institution[];
 }

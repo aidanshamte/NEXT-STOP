@@ -17,7 +17,7 @@ export interface Stop {
 export interface Trip {
   id: string;
   institution_id: string;
-  driver_id: string;
+  driver_id: string | null;
   name: string;
   capacity: number;
   active: number;

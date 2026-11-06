@@ -210,6 +210,17 @@ function Workspace() {
       }
     });
   }
+  async function deleteAccount(confirmation: { password?: string; confirmEmail?: string }) {
+    await run(async () => {
+      // Stop GPS before the session disappears so no upload outlives the account.
+      await stopDriverGps();
+      await api('/account/delete', confirmation);
+      await setToken(null);
+      setMe(null);
+      setGps(false);
+      setMessage('Your account and its NEXT STOP data were deleted.');
+    });
+  }
   async function changeOrg(id: string) {
     if (id === org) return;
     await run(async () => {
@@ -324,6 +335,8 @@ function Workspace() {
     ) : role === 'admin' ? (
       <DispatchPanel
         members={data?.members || []}
+        trips={trips}
+        selfId={me.user.id}
         stopCount={stops.length}
         tripCount={trips.length}
         draft={dispatchDraft}
@@ -421,6 +434,7 @@ function Workspace() {
                   setMessage('Google account connected.');
                 }}
                 onSignOut={signOut}
+                onDeleteAccount={deleteAccount}
               />
             ) : tab === 'journeys' ? (
               requestList

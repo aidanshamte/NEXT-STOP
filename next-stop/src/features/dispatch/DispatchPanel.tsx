@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { Button, Card, Field, Tag, s } from '../../components/UI';
-import type { Member } from '../../domain';
+import type { Member, Trip } from '../../domain';
 import type { Mutate, Run } from '../workspace/types';
 
 export interface DispatchDraft {
@@ -16,6 +16,8 @@ export interface DispatchDraft {
 
 export default function DispatchPanel({
   members,
+  trips,
+  selfId,
   stopCount,
   tripCount,
   draft,
@@ -25,6 +27,8 @@ export default function DispatchPanel({
   mutate,
 }: {
   members: Member[];
+  trips: Trip[];
+  selfId: string;
   stopCount: number;
   tripCount: number;
   draft: DispatchDraft;
@@ -52,11 +56,72 @@ export default function DispatchPanel({
             secondary
             disabled={busy}
             label="Approve verified membership"
-            onPress={() => mutate('/members/approve', { userId: m.user_id }, 'Membership approved.')}
+            onPress={() =>
+              mutate('/members/approve', { userId: m.user_id }, 'Membership approved.')
+            }
           />
         </View>
       ))}
       {!pending.length && <Tag text="No pending memberships" />}
+      <View style={s.divider} />
+      <Text style={s.heading}>Approved members</Text>
+      <Text style={s.body}>
+        Removing access signs the person out of this institution, cancels their pending pickups,
+        ends trip sharing and unassigns any shuttle they drive. They would need approval again.
+      </Text>
+      {members
+        .filter((m) => m.approved && m.user_id !== selfId)
+        .map((m) => (
+          <View key={m.user_id} style={s.request}>
+            <Text style={s.heading}>{m.name}</Text>
+            <Text style={s.body}>
+              {m.email} · {m.role}
+            </Text>
+            <Button
+              secondary
+              disabled={busy}
+              label={`Remove ${m.role} access`}
+              onPress={() => mutate('/members/revoke', { userId: m.user_id }, 'Access removed.')}
+            />
+          </View>
+        ))}
+      <View style={s.divider} />
+      <Text style={s.heading}>Shuttle assignments</Text>
+      {!trips.length && <Tag text="No shuttles yet" tone="gray" />}
+      {trips.map((trip) => {
+        const current = members.find((m) => m.user_id === trip.driver_id);
+        return (
+          <View key={trip.id} style={s.request}>
+            <Text style={s.heading}>{trip.name}</Text>
+            <Text style={s.body}>
+              {current ? `Driver: ${current.name}` : 'No driver assigned'} ·{' '}
+              {trip.active ? 'In service' : 'Not in service'} · {trip.capacity} seats
+            </Text>
+            <View style={s.pills}>
+              {drivers
+                .filter((d) => d.user_id !== trip.driver_id)
+                .map((d) => (
+                  <Pressable
+                    key={d.user_id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Assign ${d.name} to ${trip.name}`}
+                    disabled={busy}
+                    onPress={() =>
+                      mutate(
+                        '/trips/assign',
+                        { tripId: trip.id, driverId: d.user_id },
+                        `${d.name} now drives ${trip.name}.`,
+                      )
+                    }
+                    style={s.pill}
+                  >
+                    <Text style={s.pillText}>Assign {d.name}</Text>
+                  </Pressable>
+                ))}
+            </View>
+          </View>
+        );
+      })}
       <View style={s.divider} />
       <Text style={s.heading}>Add an actual pickup stop</Text>
       <Field label="Stop name" value={stopLabel} onChange={(v) => setDraft({ stopLabel: v })} />
@@ -116,9 +181,7 @@ export default function DispatchPanel({
             onPress={() => setDraft({ driverId: m.user_id })}
             style={[s.pill, driverId === m.user_id && s.pillActive]}
           >
-            <Text style={[s.pillText, driverId === m.user_id && { color: 'white' }]}>
-              {m.name}
-            </Text>
+            <Text style={[s.pillText, driverId === m.user_id && { color: 'white' }]}>{m.name}</Text>
           </Pressable>
         ))}
       </View>

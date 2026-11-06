@@ -1,22 +1,66 @@
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { openDatabase } from './db.mjs';
+import { openDatabase, pruneExpired, SCHEMA_VERSION } from './db.mjs';
 import { attachRealtime } from './realtime.mjs';
-import { tokenHash } from './security.mjs';
+import { tokenHash, verifyPassword } from './security.mjs';
 import { createAuth } from './auth.mjs';
+
+// Behind a reverse proxy (Caddy on the Azure VM) every socket address is the
+// proxy's. Only then is the proxy-set X-Forwarded-For trusted; its rightmost
+// entry is the address the proxy itself observed.
+export function clientIp(req, trustProxy) {
+  if (trustProxy) {
+    const forwarded = String(req.headers['x-forwarded-for'] || '')
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (forwarded.length) return forwarded[forwarded.length - 1];
+  }
+  return req.socket.remoteAddress || 'unknown';
+}
+
 export function createApp({
   dbPath = './data/next-stop.db',
   origins = ['http://localhost:8081'],
   authOptions = {},
+  trustProxy = false,
+  // Receives one record per request: no IPs, tokens, bodies, query strings or coordinates.
+  log = null,
+  sessionRateLimit = 240,
+  clock = Date.now,
 } = {}) {
   const db = openDatabase(dbPath);
   const auth = createAuth(db, authOptions);
+  const startedAt = clock();
+  const sessionRates = new Map();
+  const limitSession = (hash) => {
+    const now = clock();
+    let value = sessionRates.get(hash);
+    if (!value || now - value.start >= 60000) {
+      value = { start: now, count: 0 };
+      sessionRates.set(hash, value);
+    }
+    if (++value.count > sessionRateLimit) fail(429, 'Too many requests. Please slow down.');
+  };
+  const maintenance = setInterval(() => {
+    try {
+      pruneExpired(db, clock());
+      const now = clock();
+      for (const [key, value] of sessionRates)
+        if (now - value.start > 60000) sessionRates.delete(key);
+    } catch (error) {
+      log?.({ level: 'error', event: 'maintenance_failed', message: error.message });
+    }
+  }, 3600000);
+  maintenance.unref();
   const fail = (status, message) => {
     throw Object.assign(new Error(message), { status });
   };
   const membership = (uid, org) =>
     db.prepare('SELECT * FROM memberships WHERE user_id=? AND institution_id=?').get(uid, org);
   const server = createServer(async (req, res) => {
+    const started = clock();
+    const ip = clientIp(req, trustProxy);
     const origin = req.headers.origin;
     if (origin && origins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
@@ -32,7 +76,18 @@ export function createApp({
         queueMicrotask(() => realtime.invalidate(changedOrg));
       res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(data));
+      logRequest(status);
     };
+    const logRequest = (status) =>
+      log?.({
+        level: status >= 500 ? 'error' : 'info',
+        event: 'request',
+        method: req.method,
+        // Path only: query strings can carry institution identifiers.
+        path: new URL(req.url, 'http://localhost').pathname.slice(0, 80),
+        status,
+        ms: clock() - started,
+      });
     if (req.method === 'OPTIONS') {
       res.writeHead(origin && !origins.includes(origin) ? 403 : 204);
       res.end();
@@ -61,13 +116,26 @@ export function createApp({
           fail(400, `Invalid ${key}.`);
         return body[key].trim();
       };
-      if (path === '/health' && req.method === 'GET')
-        return send(200, { ok: true, service: 'next-stop', protocol: 3 });
+      if (path === '/health' && req.method === 'GET') {
+        let database = false;
+        try {
+          database = db.prepare('SELECT 1 AS ok').get().ok === 1;
+        } catch {
+          /* reported below */
+        }
+        return send(database ? 200 : 503, {
+          ok: database,
+          service: 'next-stop',
+          protocol: 3,
+          schema: SCHEMA_VERSION,
+          uptimeSeconds: Math.round((clock() - startedAt) / 1000),
+        });
+      }
       if (path === '/institutions' && req.method === 'GET')
         return send(200, db.prepare('SELECT * FROM institutions').all());
       if (
         path !== '/auth/google/link' &&
-        (await auth.handle({ path, method: req.method, body, req, send }))
+        (await auth.handle({ path, method: req.method, body, send, ip }))
       )
         return;
       const token = req.headers.authorization?.replace(/^Bearer /, '');
@@ -77,9 +145,10 @@ export function createApp({
           .prepare('SELECT user_id FROM sessions WHERE token_hash=? AND expires_at>?')
           .get(tokenHash(token), Date.now());
       if (!session) fail(401, 'Please sign in.');
+      limitSession(tokenHash(token));
       const uid = session.user_id;
       if (path === '/auth/google/link') {
-        await auth.handle({ path, method: req.method, body, req, send, uid });
+        await auth.handle({ path, method: req.method, body, send, uid, ip });
         return;
       }
       if (!db.prepare('SELECT email_verified FROM users WHERE id=?').get(uid)?.email_verified)
@@ -92,7 +161,7 @@ export function createApp({
         return send(200, {
           user: db
             .prepare(
-              'SELECT id,name,email,email_verified,google_sub IS NOT NULL AS google_linked FROM users WHERE id=?',
+              'SELECT id,name,email,email_verified,password_enabled,google_sub IS NOT NULL AS google_linked FROM users WHERE id=?',
             )
             .get(uid),
           memberships: db
@@ -101,6 +170,61 @@ export function createApp({
             )
             .all(uid),
         });
+      }
+      if (path === '/account/delete' && req.method === 'POST') {
+        const user = db.prepare('SELECT * FROM users WHERE id=?').get(uid);
+        if (user.password_enabled) {
+          if (
+            typeof body.password !== 'string' ||
+            body.password.length > 256 ||
+            !verifyPassword(body.password, user.password)
+          )
+            fail(403, 'Enter your current password to delete your account.');
+        } else if (
+          typeof body.confirmEmail !== 'string' ||
+          body.confirmEmail.trim().toLowerCase() !== user.email
+        )
+          fail(403, 'Type your account email to confirm deletion.');
+        if (db.prepare("SELECT id FROM requests WHERE student_id=? AND status='boarded'").get(uid))
+          fail(409, 'You are on board a shuttle. Delete your account after the ride ends.');
+        if (db.prepare('SELECT id FROM trips WHERE driver_id=? AND active=1').get(uid))
+          fail(409, 'End your active shuttle service before deleting your account.');
+        for (const admin of db
+          .prepare("SELECT institution_id FROM memberships WHERE user_id=? AND role='admin'")
+          .all(uid)) {
+          const others = db
+            .prepare(
+              "SELECT count(*) AS n FROM memberships WHERE institution_id=? AND role='admin' AND approved=1 AND user_id<>?",
+            )
+            .get(admin.institution_id, uid).n;
+          if (!others)
+            fail(
+              409,
+              'Add another administrator for your institution before deleting this account.',
+            );
+        }
+        const orgs = db
+          .prepare('SELECT institution_id FROM memberships WHERE user_id=?')
+          .all(uid)
+          .map((m) => m.institution_id);
+        db.exec('BEGIN IMMEDIATE');
+        try {
+          db.prepare('DELETE FROM sessions WHERE user_id=?').run(uid);
+          db.prepare('DELETE FROM shares WHERE student_id=? OR parent_id=?').run(uid, uid);
+          // Ride history is personal data: removed with the account, not anonymised.
+          db.prepare('DELETE FROM requests WHERE student_id=?').run(uid);
+          db.prepare('UPDATE trips SET driver_id=NULL WHERE driver_id=?').run(uid);
+          db.prepare('DELETE FROM memberships WHERE user_id=?').run(uid);
+          db.prepare('DELETE FROM email_codes WHERE email=?').run(user.email);
+          db.prepare('DELETE FROM mail_limits WHERE email=?').run(user.email);
+          db.prepare('DELETE FROM users WHERE id=?').run(uid);
+          db.exec('COMMIT');
+        } catch (error) {
+          db.exec('ROLLBACK');
+          throw error;
+        }
+        for (const org of orgs) queueMicrotask(() => realtime.invalidate(org));
+        return send(200, { deleted: true });
       }
       if (path === '/memberships' && req.method === 'POST') {
         const institutionId = text('institutionId'),
@@ -314,10 +438,21 @@ export function createApp({
           .prepare('SELECT * FROM trips WHERE id=? AND institution_id=?')
           .get(text('tripId'), org);
         if (!trip) fail(404, 'Trip not found.');
+        if (path === '/trips/assign') {
+          if (member.role !== 'admin') fail(403, 'Admin access required.');
+          const driverId = text('driverId');
+          const driver = membership(driverId, org);
+          if (!driver || driver.role !== 'driver' || !driver.approved)
+            fail(400, 'Choose an approved driver in this institution.');
+          // Handover keeps trip state; the new driver's device must start its own GPS.
+          db.prepare('UPDATE trips SET driver_id=? WHERE id=?').run(driverId, trip.id);
+          return send(200, { ok: true });
+        }
         if (member.role !== 'admin' && !(member.role === 'driver' && trip.driver_id === uid))
           fail(403, 'Not assigned to this trip.');
         if (path === '/trips/service') {
           if (typeof body.active !== 'boolean') fail(400, 'Invalid service state.');
+          if (body.active && !trip.driver_id) fail(409, 'Assign a driver before starting service.');
           if (
             !body.active &&
             db
@@ -327,7 +462,12 @@ export function createApp({
               .get(trip.id)
           )
             fail(409, 'Resolve active pickup requests and onboard riders before ending service.');
-          db.prepare('UPDATE trips SET active=? WHERE id=?').run(body.active ? 1 : 0, trip.id);
+          // Location is kept only while in service; ending service discards the last fix.
+          if (body.active) db.prepare('UPDATE trips SET active=1 WHERE id=?').run(trip.id);
+          else
+            db.prepare(
+              "UPDATE trips SET active=0,lat=NULL,lng=NULL,accuracy=NULL,updated_at=NULL,delay_minutes=0,issue='' WHERE id=?",
+            ).run(trip.id);
         } else if (path === '/trips/location') {
           if (!trip.active) fail(409, 'Start service first.');
           const { lat, lng, accuracy, capturedAt } = body;
@@ -399,12 +539,49 @@ export function createApp({
         );
         return send(200, { ok: true });
       }
+      if (path === '/members/revoke') {
+        if (member.role !== 'admin') fail(403, 'Admin access required.');
+        const target = text('userId');
+        if (target === uid) fail(409, 'You cannot remove your own administrator access.');
+        if (!membership(target, org)) fail(404, 'Member not found.');
+        db.exec('BEGIN IMMEDIATE');
+        try {
+          // Pending pickups end. Riders already on board keep their record so they can be dropped off.
+          db.prepare(
+            "UPDATE requests SET status='cancelled' WHERE student_id=? AND institution_id=? AND status IN ('requested','accepted')",
+          ).run(target, org);
+          db.prepare(
+            'DELETE FROM shares WHERE institution_id=? AND (student_id=? OR parent_id=?)',
+          ).run(org, target, target);
+          // A revoked driver loses the vehicle immediately; their GPS uploads are rejected.
+          db.prepare('UPDATE trips SET driver_id=NULL WHERE institution_id=? AND driver_id=?').run(
+            org,
+            target,
+          );
+          db.prepare('DELETE FROM memberships WHERE user_id=? AND institution_id=?').run(
+            target,
+            org,
+          );
+          db.exec('COMMIT');
+        } catch (error) {
+          db.exec('ROLLBACK');
+          throw error;
+        }
+        return send(200, { ok: true });
+      }
       fail(404, 'Endpoint not found.');
     } catch (error) {
+      if (!error.status)
+        log?.({
+          level: 'error',
+          event: 'unhandled',
+          message: String(error?.message).slice(0, 300),
+        });
       if (!res.headersSent)
         send(error.status || 500, { error: error.status ? error.message : 'Server error.' });
     }
   });
   const realtime = attachRealtime(server, db, origins);
+  server.on('close', () => clearInterval(maintenance));
   return { server, db, realtime };
 }

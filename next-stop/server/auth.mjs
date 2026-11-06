@@ -13,6 +13,7 @@ export function createAuth(
       .filter(Boolean),
     googleWebClientId = process.env.GOOGLE_WEB_CLIENT_ID || '',
     clock = Date.now,
+    authRateLimit = Number(process.env.AUTH_RATE_LIMIT || 30),
   } = {},
 ) {
   const google = new OAuth2Client();
@@ -55,7 +56,7 @@ export function createAuth(
       value = { start: now, count: 0 };
       rates.set(key, value);
     }
-    if (++value.count > 30) fail(429, 'Too many attempts. Please wait a minute.');
+    if (++value.count > authRateLimit) fail(429, 'Too many attempts. Please wait a minute.');
     for (const [key, value] of rates) if (now - value.start > 60000) rates.delete(key);
   };
   async function issue(email, purpose) {
@@ -131,7 +132,7 @@ export function createAuth(
   }
   return {
     session,
-    async handle({ path, method, body, req, send, uid }) {
+    async handle({ path, method, body, send, uid, ip }) {
       if (path === '/auth/options' && method === 'GET') {
         send(200, {
           emailEnabled: !!mailer,
@@ -155,7 +156,7 @@ export function createAuth(
       )
         return false;
       if (method !== 'POST') fail(405, 'Method not allowed.');
-      gate(req.socket.remoteAddress, path);
+      gate(ip, path);
       if (path === '/auth/google/challenge') {
         const challenge = randomBytes(32).toString('hex');
         db.prepare('DELETE FROM google_challenges WHERE expires_at<?').run(clock());
