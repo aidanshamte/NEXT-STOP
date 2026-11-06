@@ -31,9 +31,12 @@ try {
 }
 const { server, db, realtime } = app;
 server.listen(port, host, () => {
-  if (!process.env.SMTP_HOST || !process.env.SMTP_FROM)
+  if (
+    !(process.env.ACS_EMAIL_ENDPOINT && process.env.ACS_EMAIL_SENDER) &&
+    !(process.env.SMTP_HOST && process.env.SMTP_FROM)
+  )
     console.warn(
-      'Email verification needs SMTP_HOST and SMTP_FROM. No verification codes will be faked or printed.',
+      'Email verification needs ACS_EMAIL_ENDPOINT + ACS_EMAIL_SENDER or SMTP settings. No codes are faked or printed.',
     );
   if (!process.env.GOOGLE_WEB_CLIENT_ID && !process.env.GOOGLE_CLIENT_IDS)
     console.warn('Google sign-in needs Google OAuth client configuration.');

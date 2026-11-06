@@ -1,5 +1,6 @@
 export type Role = 'student' | 'driver' | 'parent' | 'admin';
-export type RequestStatus = 'requested' | 'accepted' | 'boarded' | 'arrived' | 'cancelled';
+export type RequestStatus =
+  'requested' | 'accepted' | 'approaching' | 'boarded' | 'arrived' | 'cancelled';
 export interface Institution {
   id: string;
   name: string;
@@ -38,6 +39,8 @@ export interface RideRequest {
   destination_id: string;
   status: RequestStatus;
   created_at: number;
+  /** Time of the latest status change, set by the server. */
+  updated_at?: number | null;
 }
 export interface Share {
   student_id: string;
@@ -64,7 +67,7 @@ export interface Snapshot {
   members: Member[];
 }
 export const isOpen = (status: RequestStatus) =>
-  ['requested', 'accepted', 'boarded'].includes(status);
+  ['requested', 'accepted', 'approaching', 'boarded'].includes(status);
 export function locationState(trip: Trip, now = Date.now()): 'offline' | 'stale' | 'live' {
   if (!trip.active || trip.lat == null || trip.lng == null || trip.updated_at == null)
     return 'offline';
@@ -73,9 +76,12 @@ export function locationState(trip: Trip, now = Date.now()): 'offline' | 'stale'
 export function nextStatus(status: RequestStatus): RequestStatus | null {
   return (
     (
-      { requested: 'accepted', accepted: 'boarded', boarded: 'arrived' } as Partial<
-        Record<RequestStatus, RequestStatus>
-      >
+      {
+        requested: 'accepted',
+        accepted: 'approaching',
+        approaching: 'boarded',
+        boarded: 'arrived',
+      } as Partial<Record<RequestStatus, RequestStatus>>
     )[status] || null
   );
 }
@@ -83,6 +89,7 @@ export function canEndService(requests: RideRequest[], tripId: string) {
   return !requests.some((r) => r.trip_id === tripId && isOpen(r.status));
 }
 export function occupancy(requests: RideRequest[], tripId: string) {
-  return requests.filter((r) => r.trip_id === tripId && ['accepted', 'boarded'].includes(r.status))
-    .length;
+  return requests.filter(
+    (r) => r.trip_id === tripId && ['accepted', 'approaching', 'boarded'].includes(r.status),
+  ).length;
 }

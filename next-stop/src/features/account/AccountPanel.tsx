@@ -5,6 +5,7 @@ import LinkGoogle from '../auth/LinkGoogle';
 import type { Role, Share } from '../../domain';
 import { roleLabels } from '../workspace/types';
 import type { Me, Mutate } from '../workspace/types';
+import type { PushState } from '../../services/push';
 
 export default function AccountPanel({
   me,
@@ -18,6 +19,8 @@ export default function AccountPanel({
   onGoogleLinked,
   onSignOut,
   onDeleteAccount,
+  pushState,
+  onEnablePush,
 }: {
   me: Me;
   role: Role;
@@ -30,6 +33,8 @@ export default function AccountPanel({
   onGoogleLinked: () => Promise<void>;
   onSignOut: () => void;
   onDeleteAccount: (confirmation: { password?: string; confirmEmail?: string }) => Promise<void>;
+  pushState: PushState | null;
+  onEnablePush: () => void;
 }) {
   const [deleting, setDeleting] = useState(false);
   const [confirmation, setConfirmation] = useState('');
@@ -41,6 +46,25 @@ export default function AccountPanel({
       <Text style={s.body}>{me.user.email}</Text>
       <Tag text={`${roleLabels[role]} · ${institutionName || 'Institution'}`} tone="gray" />
       <LinkGoogle linked={!!me.user.google_linked} onLinked={onGoogleLinked} />
+      <View style={s.divider} />
+      <Text style={s.heading}>Notifications on this device</Text>
+      {pushState?.status === 'enabled' ? (
+        <Tag text="On · trip updates" />
+      ) : pushState?.status === 'denied' ? (
+        <Text style={s.body}>
+          Off. To receive trip updates, allow notifications for NEXT STOP in your phone Settings.
+        </Text>
+      ) : pushState?.status === 'unavailable' ? (
+        <Text style={s.body}>{pushState.reason}</Text>
+      ) : (
+        <Button
+          secondary
+          icon="notifications-outline"
+          label="Turn on notifications"
+          disabled={busy}
+          onPress={onEnablePush}
+        />
+      )}
       {role === 'student' && (
         <>
           <View style={s.divider} />

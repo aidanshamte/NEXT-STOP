@@ -19,6 +19,7 @@ import { basename, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { openDatabase, SCHEMA_VERSION } from './db.mjs';
+import { managedIdentityToken } from './azure.mjs';
 
 export async function createBackup(dbPath, outDir, now = new Date()) {
   mkdirSync(outDir, { recursive: true });
@@ -82,16 +83,11 @@ export function pruneBackups(outDir, keep) {
   return files.slice(keep).length;
 }
 
-async function managedIdentityToken() {
-  const response = await fetch(
-    'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com%2F',
-    { headers: { Metadata: 'true' }, signal: AbortSignal.timeout(5000) },
-  );
-  if (!response.ok) throw Error(`Managed identity token request failed (${response.status}).`);
-  return (await response.json()).access_token;
-}
-
-export async function uploadBackup(file, containerUrl, getToken = managedIdentityToken) {
+export async function uploadBackup(
+  file,
+  containerUrl,
+  getToken = () => managedIdentityToken('https://storage.azure.com/'),
+) {
   const url = new URL(containerUrl);
   if (url.protocol !== 'https:' || url.search)
     throw Error('Use an https container URL without a SAS/query.');

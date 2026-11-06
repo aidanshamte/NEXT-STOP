@@ -27,3 +27,14 @@ test('boarding lifecycle and service-end guard include waiting and onboard rider
     2,
   );
 });
+
+test('driver-set lifecycle includes approaching and it holds a seat', () => {
+  assert.equal(nextStatus('requested'), 'accepted');
+  assert.equal(nextStatus('accepted'), 'approaching');
+  assert.equal(nextStatus('approaching'), 'boarded');
+  assert.equal(nextStatus('boarded'), 'arrived');
+  assert.equal(nextStatus('arrived'), null);
+  const reqs = [{ trip_id: 't', status: 'approaching' }];
+  assert.equal(occupancy(reqs, 't'), 1);
+  assert.equal(canEndService(reqs, 't'), false);
+});

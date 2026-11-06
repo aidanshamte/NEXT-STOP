@@ -7,7 +7,13 @@ import type { RideRequest, Role, Trip } from '../../domain';
 import { statusLabels } from '../workspace/types';
 import type { Mutate } from '../workspace/types';
 
-const stages = ['requested', 'accepted', 'boarded', 'arrived'];
+const stages = ['requested', 'accepted', 'approaching', 'boarded', 'arrived'];
+const actionLabel: Record<string, string> = {
+  requested: 'Accept pickup',
+  accepted: 'Approaching stop',
+  approaching: 'Confirm boarding',
+  boarded: 'Confirm drop-off',
+};
 
 export default function RequestList({
   role,
@@ -68,7 +74,11 @@ export default function RequestList({
                   {stopName(r.stop_id)} → {stopName(r.destination_id)}
                 </Text>
                 <Text style={s.caption}>
-                  {trips.find((t) => t.id === r.trip_id)?.name || 'Assigned shuttle'}
+                  {trips.find((t) => t.id === r.trip_id)?.name || 'Assigned shuttle'} · updated{' '}
+                  {new Date(r.updated_at || r.created_at).toLocaleTimeString([], {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   {stages.map((stage, i) => (
@@ -86,13 +96,7 @@ export default function RequestList({
                 {operator && next && (
                   <Button
                     disabled={busy}
-                    label={
-                      r.status === 'requested'
-                        ? 'Accept pickup'
-                        : r.status === 'accepted'
-                          ? 'Confirm boarding'
-                          : 'Confirm drop-off'
-                    }
+                    label={actionLabel[r.status]}
                     onPress={() =>
                       mutate(
                         '/requests/status',
@@ -102,8 +106,22 @@ export default function RequestList({
                     }
                   />
                 )}
+                {operator && r.status === 'accepted' && (
+                  <Button
+                    secondary
+                    disabled={busy}
+                    label="Rider boarded"
+                    onPress={() =>
+                      mutate(
+                        '/requests/status',
+                        { requestId: r.id, status: 'boarded' },
+                        'Boarding confirmed.',
+                      )
+                    }
+                  />
+                )}
                 {['student', 'driver', 'admin'].includes(role) &&
-                  ['requested', 'accepted'].includes(r.status) && (
+                  ['requested', 'accepted', 'approaching'].includes(r.status) && (
                     <Button
                       secondary
                       disabled={busy}

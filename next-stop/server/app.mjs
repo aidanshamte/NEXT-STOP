@@ -4,6 +4,22 @@ import { openDatabase, pruneExpired, SCHEMA_VERSION } from './db.mjs';
 import { attachRealtime } from './realtime.mjs';
 import { tokenHash, verifyPassword } from './security.mjs';
 import { createAuth } from './auth.mjs';
+import { createPush, createExpoTransport, EXPO_TOKEN } from './push.mjs';
+import { OPEN_STATUSES } from './db.mjs';
+
+const OPEN_SQL = OPEN_STATUSES.map((v) => `'${v}'`).join(',');
+const firstName = (name) =>
+  String(name || '')
+    .trim()
+    .split(/\s+/)[0] || 'Your student';
+// Rider-facing wording for each driver-set status. No ETA or position is implied.
+const statusText = {
+  accepted: (trip, stop) => ['Pickup accepted', `${trip} accepted your pickup at ${stop}.`],
+  approaching: (trip, stop) => ['Shuttle approaching', `${trip} is approaching ${stop}.`],
+  boarded: (trip) => ['On board', `Boarding confirmed on ${trip}.`],
+  arrived: (trip, stop, destination) => ['Arrived', `${trip} reports arrival at ${destination}.`],
+  cancelled: (trip, stop) => ['Pickup cancelled', `Your pickup at ${stop} was cancelled.`],
+};
 
 // Behind a reverse proxy (Caddy on the Azure VM) every socket address is the
 // proxy's. Only then is the proxy-set X-Forwarded-For trusted; its rightmost
@@ -29,10 +45,26 @@ export function createApp({
   sessionRateLimit = 240,
   // Identifies the deployed build in /health so a deploy can be verified from outside.
   release = process.env.RELEASE_ID || 'development',
+  // Expo push transport. Off unless injected or PUSH_ENABLED=1 (the production service sets it).
+  pushTransport = process.env.PUSH_ENABLED === '1' ? createExpoTransport() : null,
   clock = Date.now,
 } = {}) {
   const db = openDatabase(dbPath);
   const auth = createAuth(db, authOptions);
+  const push = createPush(db, { transport: pushTransport, log, clock });
+  const receiptTimer = setInterval(() => void push.checkReceipts(), 5 * 60000);
+  receiptTimer.unref();
+  // Recipients for rider-facing updates: the student and parents the student currently shares with.
+  const riderAudience = (request) => {
+    const student = db.prepare('SELECT name FROM users WHERE id=?').get(request.student_id);
+    const parents = db
+      .prepare('SELECT parent_id FROM shares WHERE student_id=? AND institution_id=?')
+      .all(request.student_id, request.institution_id)
+      .map((r) => r.parent_id);
+    return { studentName: firstName(student?.name), parents };
+  };
+  const stopName = (id) =>
+    db.prepare('SELECT name FROM stops WHERE id=?').get(id)?.name || 'your stop';
   const startedAt = clock();
   const sessionRates = new Map();
   const limitSession = (hash) => {
@@ -156,7 +188,20 @@ export function createApp({
       }
       if (!db.prepare('SELECT email_verified FROM users WHERE id=?').get(uid)?.email_verified)
         fail(403, 'Verify your email before continuing.');
+      if (path === '/push/register' && req.method === 'POST') {
+        if (typeof body.token !== 'string' || !EXPO_TOKEN.test(body.token))
+          fail(400, 'Invalid push token.');
+        if (!['ios', 'android'].includes(body.platform)) fail(400, 'Invalid platform.');
+        push.register(uid, tokenHash(token), body.token, body.platform);
+        return send(200, { registered: true });
+      }
+      if (path === '/push/unregister' && req.method === 'POST') {
+        if (typeof body.token === 'string') push.unregister(uid, body.token);
+        return send(200, { ok: true });
+      }
       if (path === '/auth/logout' && req.method === 'POST') {
+        // This device stops receiving notifications for the signed-out account.
+        db.prepare('DELETE FROM push_tokens WHERE session_hash=?').run(tokenHash(token));
         db.prepare('DELETE FROM sessions WHERE token_hash=?').run(tokenHash(token));
         return send(200, { ok: true });
       }
@@ -213,6 +258,7 @@ export function createApp({
         db.exec('BEGIN IMMEDIATE');
         try {
           db.prepare('DELETE FROM sessions WHERE user_id=?').run(uid);
+          db.prepare('DELETE FROM push_tokens WHERE user_id=?').run(uid);
           db.prepare('DELETE FROM shares WHERE student_id=? OR parent_id=?').run(uid, uid);
           // Ride history is personal data: removed with the account, not anonymised.
           db.prepare('DELETE FROM requests WHERE student_id=?').run(uid);
@@ -299,7 +345,10 @@ export function createApp({
             )
             .all(org, uid);
           trips = trips.filter((t) =>
-            requests.some((r) => r.trip_id === t.id && ['accepted', 'boarded'].includes(r.status)),
+            requests.some(
+              (r) =>
+                r.trip_id === t.id && ['accepted', 'approaching', 'boarded'].includes(r.status),
+            ),
           );
         } else
           requests = db
@@ -384,21 +433,24 @@ export function createApp({
           fail(400, 'Choose different pickup and destination stops in your institution.');
         const existing = db
           .prepare(
-            "SELECT id FROM requests WHERE student_id=? AND institution_id=? AND status IN ('requested','accepted','boarded')",
+            `SELECT id FROM requests WHERE student_id=? AND institution_id=? AND status IN (${OPEN_SQL})`,
           )
           .get(uid, org);
         if (existing) fail(409, 'You already have an active request.');
         const id = randomUUID();
-        db.prepare('INSERT INTO requests VALUES (?,?,?,?,?,?,?,?)').run(
-          id,
-          org,
-          uid,
-          trip.id,
-          stopId,
-          destinationId,
-          'requested',
-          Date.now(),
-        );
+        const now = clock();
+        db.prepare(
+          'INSERT INTO requests(id,institution_id,student_id,trip_id,stop_id,destination_id,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
+        ).run(id, org, uid, trip.id, stopId, destinationId, 'requested', now, now);
+        if (trip.driver_id)
+          push.notify([
+            {
+              userIds: [trip.driver_id],
+              title: 'New pickup request',
+              body: `Pickup requested at ${stopName(stopId)}.`,
+              data: { type: 'request', institutionId: org },
+            },
+          ]);
         return send(201, { id });
       }
       if (path === '/requests/status') {
@@ -412,7 +464,7 @@ export function createApp({
           if (
             row.student_id !== uid ||
             next !== 'cancelled' ||
-            !['requested', 'accepted'].includes(row.status)
+            !['requested', 'accepted', 'approaching'].includes(row.status)
           )
             fail(403, 'Cannot cancel this request.');
         } else {
@@ -420,20 +472,58 @@ export function createApp({
             fail(403, 'Not assigned to this trip.');
           const transitions = {
             requested: ['accepted', 'cancelled'],
-            accepted: ['boarded', 'cancelled'],
+            accepted: ['approaching', 'boarded', 'cancelled'],
+            approaching: ['boarded', 'cancelled'],
             boarded: ['arrived'],
           };
+          // Validated against the stored state, so a second conflicting action gets 409.
           if (!transitions[row.status]?.includes(next)) fail(409, 'Invalid request transition.');
           if (next === 'accepted' || next === 'boarded') {
             const occupied = db
               .prepare(
-                "SELECT count(*) AS n FROM requests WHERE trip_id=? AND status IN ('accepted','boarded') AND id<>?",
+                "SELECT count(*) AS n FROM requests WHERE trip_id=? AND status IN ('accepted','approaching','boarded') AND id<>?",
               )
               .get(trip.id, row.id).n;
             if (occupied >= trip.capacity) fail(409, 'Shuttle capacity reached.');
           }
         }
-        db.prepare('UPDATE requests SET status=? WHERE id=?').run(next, row.id);
+        db.prepare('UPDATE requests SET status=?,updated_at=? WHERE id=?').run(
+          next,
+          clock(),
+          row.id,
+        );
+        if (member.role === 'student') {
+          if (trip.driver_id)
+            push.notify([
+              {
+                userIds: [trip.driver_id],
+                title: 'Pickup cancelled',
+                body: `The rider cancelled the pickup at ${stopName(row.stop_id)}.`,
+                data: { type: 'request', institutionId: org },
+              },
+            ]);
+        } else {
+          const [title, text] = statusText[next](
+            trip.name,
+            stopName(row.stop_id),
+            stopName(row.destination_id),
+          );
+          const { studentName, parents } = riderAudience(row);
+          push.notify([
+            {
+              userIds: [row.student_id],
+              title,
+              body: text,
+              data: { type: 'status', institutionId: org },
+            },
+            {
+              userIds: parents,
+              title: `${studentName}: ${title.toLowerCase()}`,
+              body: text.replace('your pickup', `${studentName}'s pickup`),
+              data: { type: 'status', institutionId: org },
+            },
+          ]);
+        }
         return send(200, { ok: true });
       }
       if (path.startsWith('/trips/')) {
@@ -459,9 +549,7 @@ export function createApp({
           if (
             !body.active &&
             db
-              .prepare(
-                "SELECT id FROM requests WHERE trip_id=? AND status IN ('requested','accepted','boarded')",
-              )
+              .prepare(`SELECT id FROM requests WHERE trip_id=? AND status IN (${OPEN_SQL})`)
               .get(trip.id)
           )
             fail(409, 'Resolve active pickup requests and onboard riders before ending service.');
@@ -510,9 +598,41 @@ export function createApp({
             fail(400, 'Invalid incident details.');
           db.prepare('UPDATE trips SET delay_minutes=?,issue=? WHERE id=?').run(
             body.delayMinutes,
-            body.issue,
+            body.issue.trim(),
             trip.id,
           );
+          if (body.delayMinutes > 0 || body.issue.trim()) {
+            const riders = db
+              .prepare(`SELECT * FROM requests WHERE trip_id=? AND status IN (${OPEN_SQL})`)
+              .all(trip.id);
+            const detail = [
+              body.delayMinutes > 0
+                ? `Driver reports a delay of about ${body.delayMinutes} min.`
+                : '',
+              body.issue.trim().slice(0, 120),
+            ]
+              .filter(Boolean)
+              .join(' ');
+            push.notify(
+              riders.flatMap((r) => {
+                const { studentName, parents } = riderAudience(r);
+                return [
+                  {
+                    userIds: [r.student_id],
+                    title: `Service update: ${trip.name}`,
+                    body: detail,
+                    data: { type: 'issue', institutionId: org },
+                  },
+                  {
+                    userIds: parents,
+                    title: `${studentName}'s shuttle: service update`,
+                    body: detail,
+                    data: { type: 'issue', institutionId: org },
+                  },
+                ];
+              }),
+            );
+          }
         } else fail(404, 'Endpoint not found.');
         return send(200, { ok: true });
       }
@@ -540,6 +660,15 @@ export function createApp({
           target,
           org,
         );
+        const institution = db.prepare('SELECT name FROM institutions WHERE id=?').get(org);
+        push.notify([
+          {
+            userIds: [target],
+            title: 'Access approved',
+            body: `${institution?.name || 'Your institution'} approved your NEXT STOP access.`,
+            data: { type: 'membership', institutionId: org },
+          },
+        ]);
         return send(200, { ok: true });
       }
       if (path === '/members/revoke') {
@@ -551,7 +680,7 @@ export function createApp({
         try {
           // Pending pickups end. Riders already on board keep their record so they can be dropped off.
           db.prepare(
-            "UPDATE requests SET status='cancelled' WHERE student_id=? AND institution_id=? AND status IN ('requested','accepted')",
+            "UPDATE requests SET status='cancelled' WHERE student_id=? AND institution_id=? AND status IN ('requested','accepted','approaching')",
           ).run(target, org);
           db.prepare(
             'DELETE FROM shares WHERE institution_id=? AND (student_id=? OR parent_id=?)',
@@ -585,6 +714,9 @@ export function createApp({
     }
   });
   const realtime = attachRealtime(server, db, origins);
-  server.on('close', () => clearInterval(maintenance));
-  return { server, db, realtime };
+  server.on('close', () => {
+    clearInterval(maintenance);
+    clearInterval(receiptTimer);
+  });
+  return { server, db, realtime, push };
 }

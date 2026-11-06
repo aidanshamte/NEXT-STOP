@@ -1,4 +1,7 @@
 import type { ExpoConfig, ConfigContext } from 'expo/config';
+import { existsSync } from 'node:fs';
+// Permanent store identifiers, under the owner's GitHub Pages namespace (aidanshamte.github.io).
+export const APP_ID = 'io.github.aidanshamte.nextstop';
 // Installed builds that leave a developer's machine must reach the hosted HTTPS API.
 // Fail the build instead of shipping an app that cannot connect.
 export function requireHostedApi(profile: string | undefined, apiUrl: string | undefined) {
@@ -26,6 +29,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     (iosGoogleId?.endsWith('.apps.googleusercontent.com')
       ? 'com.googleusercontent.apps.' + iosGoogleId.replace('.apps.googleusercontent.com', '')
       : '');
+  // Firebase app config for Android push (FCM). Not a secret per Expo/Firebase guidance;
+  // EAS can also supply it as a file environment variable.
+  const googleServicesFile =
+    process.env.GOOGLE_SERVICES_JSON ||
+    (existsSync('./google-services.json') ? './google-services.json' : undefined);
   const googlePlugins: NonNullable<ExpoConfig['plugins']> = googleScheme
     ? [['@react-native-google-signin/google-signin', { iosUrlScheme: googleScheme }]]
     : [];
@@ -40,7 +48,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     icon: './assets/icon.png',
     ios: {
       supportsTablet: true,
-      bundleIdentifier: 'com.nextstop.app',
+      bundleIdentifier: APP_ID,
       // HTTPS/TLS only: exempt from export-compliance encryption documentation.
       config: { usesNonExemptEncryption: false },
       infoPlist: {
@@ -55,8 +63,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
     },
     android: {
-      package: 'com.nextstop.app',
+      package: APP_ID,
       adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#11243A' },
+      ...(googleServicesFile ? { googleServicesFile } : {}),
     },
     web: { favicon: './assets/favicon.png', name: 'NEXT STOP', shortName: 'NEXT STOP' },
     extra: {
@@ -87,8 +96,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         },
       ],
       [
-        'react-native-maps',
-        { androidGoogleMapsApiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY || '' },
+        'expo-notifications',
+        {
+          icon: './assets/location-notification.png',
+          color: '#EF543F',
+          defaultChannel: 'trip-updates',
+        },
       ],
     ],
   };

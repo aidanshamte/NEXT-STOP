@@ -17,6 +17,8 @@ Environment=NODE_ENV=production
 Environment=HOST=127.0.0.1
 Environment=PORT=4000
 Environment=TRUST_PROXY=1
+# Trip notifications through Expo Push Service.
+Environment=PUSH_ENABLED=1
 Environment=DATABASE_PATH=/var/lib/next-stop/next-stop.db
 ExecStart=/usr/bin/node server/index.mjs
 Restart=on-failure

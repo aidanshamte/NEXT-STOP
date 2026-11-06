@@ -27,6 +27,7 @@ export const roleLabels: Record<Role, string> = {
 export const statusLabels: Record<RequestStatus, string> = {
   requested: 'Pickup requested',
   accepted: 'Driver accepted',
+  approaching: 'Shuttle approaching',
   boarded: 'Onboard shuttle',
   arrived: 'Arrived',
   cancelled: 'Cancelled',

@@ -40,7 +40,23 @@ const migrations = [
     CREATE INDEX IF NOT EXISTS requests_trip_status ON requests(trip_id,status);
     CREATE INDEX IF NOT EXISTS trips_institution ON trips(institution_id);`);
   },
+  // 3: driver-set 'approaching' status (SQLite cannot alter a CHECK, so the table is
+  // rebuilt with every row copied), status timestamps, and push notification tokens.
+  (db) => {
+    db.exec(`CREATE TABLE requests_v3(id TEXT PRIMARY KEY,institution_id TEXT REFERENCES institutions(id),student_id TEXT REFERENCES users(id),trip_id TEXT REFERENCES trips(id),stop_id TEXT REFERENCES stops(id),destination_id TEXT REFERENCES stops(id),status TEXT NOT NULL CHECK(status IN ('requested','accepted','approaching','boarded','arrived','cancelled')),created_at INTEGER NOT NULL,updated_at INTEGER);
+    INSERT INTO requests_v3(id,institution_id,student_id,trip_id,stop_id,destination_id,status,created_at,updated_at)
+      SELECT id,institution_id,student_id,trip_id,stop_id,destination_id,status,created_at,created_at FROM requests;
+    DROP TABLE requests;
+    ALTER TABLE requests_v3 RENAME TO requests;
+    CREATE UNIQUE INDEX one_open_request ON requests(student_id,institution_id) WHERE status IN ('requested','accepted','approaching','boarded');
+    CREATE INDEX requests_trip_status ON requests(trip_id,status);
+    CREATE TABLE IF NOT EXISTS push_tokens(token TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),session_hash TEXT NOT NULL,platform TEXT NOT NULL,created_at INTEGER NOT NULL);
+    CREATE INDEX IF NOT EXISTS push_tokens_user ON push_tokens(user_id);
+    CREATE TABLE IF NOT EXISTS push_tickets(id TEXT PRIMARY KEY,token TEXT NOT NULL,created_at INTEGER NOT NULL);`);
+  },
 ];
+// Statuses in which a request holds a place and blocks a new request by the same student.
+export const OPEN_STATUSES = ['requested', 'accepted', 'approaching', 'boarded'];
 export const SCHEMA_VERSION = migrations.length;
 
 export function migrate(db) {
@@ -74,7 +90,12 @@ export function openDatabase(path) {
 // Removes expired credentials. Safe to run at any time.
 export function pruneExpired(db, now = Date.now()) {
   db.prepare('DELETE FROM sessions WHERE expires_at<=?').run(now);
+  db.prepare(
+    'DELETE FROM push_tokens WHERE session_hash NOT IN (SELECT token_hash FROM sessions)',
+  ).run();
   db.prepare('DELETE FROM email_codes WHERE expires_at<=?').run(now);
   db.prepare('DELETE FROM google_challenges WHERE expires_at<=?').run(now);
   db.prepare('DELETE FROM mail_limits WHERE hour<?').run(Math.floor(now / 3600000) - 24);
+  // Expo keeps receipts for 24 hours; older tickets can no longer be checked.
+  db.prepare('DELETE FROM push_tickets WHERE created_at<=?').run(now - 86400000);
 }

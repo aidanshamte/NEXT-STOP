@@ -12,7 +12,9 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Brand, C } from './src/components/Brand';
 import { Button, Card, Icon, Tag, s } from './src/components/UI';
-import { api, restoreServer, restoreToken, setToken } from './src/services/api';
+import { api, ApiError, restoreServer, restoreToken, setToken } from './src/services/api';
+import { disablePush, enablePush, onNotificationOpened } from './src/services/push';
+import type { PushState } from './src/services/push';
 import { currentTracking, startDriverGps, stopDriverGps } from './src/services/location';
 import { trackingStatus } from './src/services/backgroundLocation';
 import { useLiveSnapshot } from './src/hooks/useLiveSnapshot';
@@ -73,6 +75,10 @@ function Workspace() {
     [delay, setDelay] = useState('0'),
     [issue, setIssue] = useState('');
   const [dispatchDraft, setDispatchDraft] = useState(emptyDispatchDraft);
+  const [pushState, setPushState] = useState<PushState | null>(null);
+  const [pushDismissed, setPushDismissed] = useState(false);
+  // True when a saved session exists but the server could not be reached at launch.
+  const [offlineStart, setOfflineStart] = useState(false);
   const updateDispatchDraft = (change: Partial<DispatchDraft>) =>
     setDispatchDraft((draft) => ({ ...draft, ...change }));
   const unauthorized = useCallback(() => {
@@ -109,30 +115,72 @@ function Workspace() {
       throw Error('NEXT STOP is temporarily unavailable. Please try again shortly.');
     setStartupError('');
   }
+  // Restores the saved session. Only a server rejection (401/403) discards it; a network
+  // failure keeps the session so a rider opening the app without signal is not signed out.
+  async function restore(isActive: () => boolean = () => true) {
+    let hadToken = false;
+    try {
+      await prepareConnection();
+      hadToken = !!(await restoreToken());
+      if (hadToken) {
+        const user = await api<Me>('/me');
+        if (isActive()) {
+          setSessionVersion((v) => v + 1);
+          setMe(user);
+          setOrg((current) =>
+            user.memberships.some((m) => m.id === current)
+              ? current
+              : user.memberships[0]?.id || '',
+          );
+          setOfflineStart(false);
+        }
+      }
+    } catch (e) {
+      const rejected = e instanceof ApiError && (e.status === 401 || e.status === 403);
+      if (rejected || !hadToken) {
+        if (rejected) await setToken(null);
+        if (isActive()) setStartupError((e as Error).message);
+      } else if (isActive()) setOfflineStart(true);
+    } finally {
+      if (isActive()) setRestoring(false);
+    }
+  }
   useEffect(() => {
     let active = true;
-    (async () => {
-      try {
-        await prepareConnection();
-        if (await restoreToken()) {
-          const user = await api<Me>('/me');
-          if (active) {
-            setSessionVersion((v) => v + 1);
-            setMe(user);
-            setOrg(user.memberships[0]?.id || '');
-          }
-        }
-      } catch (e) {
-        await setToken(null);
-        if (active) setStartupError((e as Error).message);
-      } finally {
-        if (active) setRestoring(false);
-      }
-    })();
+    // State updates happen only after the network calls resolve.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void restore(() => active);
     return () => {
       active = false;
     };
+    // Runs once at launch; Try again calls restore() directly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Registers for trip notifications without prompting; the user opts in from a card.
+  const approved = !!data?.approved;
+  useEffect(() => {
+    if (!me || !approved) return;
+    let active = true;
+    enablePush({ prompt: false })
+      .then((state) => active && setPushState(state))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [me, approved, sessionVersion]);
+  useEffect(() => onNotificationOpened(refresh), [refresh]);
+  async function turnOnNotifications() {
+    await run(async () => {
+      const state = await enablePush({ prompt: true });
+      setPushState(state);
+      if (state.status === 'enabled') setMessage('Trip notifications are on for this device.');
+      else if (state.status === 'denied')
+        throw Error(
+          'Notifications are blocked. Turn them on for NEXT STOP in your phone Settings.',
+        );
+      else if (state.status === 'unavailable') throw Error(state.reason);
+    });
+  }
   useEffect(() => {
     if (!me) return;
     let active = true;
@@ -200,6 +248,8 @@ function Workspace() {
   async function signOut() {
     await run(async () => {
       await stopDriverGps();
+      await disablePush();
+      setPushState(null);
       try {
         await api('/auth/logout', {});
       } finally {
@@ -215,6 +265,8 @@ function Workspace() {
       // Stop GPS before the session disappears so no upload outlives the account.
       await stopDriverGps();
       await api('/account/delete', confirmation);
+      await disablePush();
+      setPushState(null);
       await setToken(null);
       setMe(null);
       setGps(false);
@@ -268,6 +320,33 @@ function Workspace() {
       <SafeAreaView style={[s.safe, { alignItems: 'center', justifyContent: 'center', gap: 25 }]}>
         <Brand />
         <ActivityIndicator color={C.coral} />
+      </SafeAreaView>
+    );
+  if (offlineStart && !me)
+    return (
+      <SafeAreaView
+        style={[s.safe, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}
+      >
+        <Card style={{ maxWidth: 420, width: '100%', gap: 14 }}>
+          <Brand />
+          <Icon name="cloud-offline-outline" size={34} color={C.coral} />
+          <Text style={s.title}>You’re offline</Text>
+          <Text style={s.body}>
+            NEXT STOP can’t reach the service right now. You’re still signed in. Check your mobile
+            data or Wi-Fi, then try again.
+          </Text>
+          <Button
+            label="Try again"
+            icon="refresh"
+            disabled={busy}
+            onPress={() =>
+              void run(async () => {
+                setRestoring(true);
+                await restore();
+              })
+            }
+          />
+        </Card>
       </SafeAreaView>
     );
   if (!me)
@@ -398,6 +477,33 @@ function Workspace() {
               syncError={syncError}
               onDismissMessage={() => setMessage('')}
             />
+            {pushState?.status === 'ask' && !pushDismissed && (
+              <Card style={{ gap: 12 }}>
+                <View style={[s.row, { gap: 12, justifyContent: 'flex-start' }]}>
+                  <Icon name="notifications-outline" size={24} color={C.coral} />
+                  <Text style={[s.heading, { flex: 1 }]}>Get trip updates</Text>
+                </View>
+                <Text style={s.body}>
+                  {role === 'driver'
+                    ? 'Hear about new pickup requests and cancellations even when NEXT STOP is in the background.'
+                    : role === 'admin'
+                      ? 'Hear when your access changes. Operational review stays in this workspace.'
+                      : 'Know when your pickup is accepted, the shuttle is approaching, and about reported delays. The live view here stays the most up-to-date source.'}
+                </Text>
+                <Button
+                  label="Turn on notifications"
+                  icon="notifications"
+                  disabled={busy}
+                  onPress={() => void turnOnNotifications()}
+                />
+                <Button
+                  label="Not now"
+                  secondary
+                  disabled={busy}
+                  onPress={() => setPushDismissed(true)}
+                />
+              </Card>
+            )}
             <Text style={s.caption}>
               {lastSync
                 ? `Last synchronized ${new Date(lastSync).toLocaleTimeString()}`
@@ -435,6 +541,8 @@ function Workspace() {
                 }}
                 onSignOut={signOut}
                 onDeleteAccount={deleteAccount}
+                pushState={pushState}
+                onEnablePush={() => void turnOnNotifications()}
               />
             ) : tab === 'journeys' ? (
               requestList
