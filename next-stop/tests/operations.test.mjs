@@ -440,3 +440,22 @@ test('per-session request limit applies to authenticated calls', async (t) => {
   for (let i = 0; i < 3; i++) assert.equal((await call('/me', token)).status, 200);
   assert.equal((await call('/me', token)).status, 429);
 });
+
+test('backup CLI runs when invoked through a symlinked release directory', async () => {
+  const { symlinkSync } = await import('node:fs');
+  const { spawnSync } = await import('node:child_process');
+  const { resolve } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'nextstop-link-'));
+  try {
+    const link = join(dir, 'current');
+    // Same shape as /opt/next-stop/current -> releases/<id> on the server.
+    symlinkSync(resolve('server'), link, 'junction');
+    const run = spawnSync(process.execPath, [join(link, 'backup.mjs'), 'bogus'], {
+      encoding: 'utf8',
+    });
+    assert.equal(run.status, 2, 'CLI must run (usage exit), not silently do nothing');
+    assert.match(run.stderr, /Usage/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

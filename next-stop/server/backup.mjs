@@ -6,6 +6,7 @@
 // identity, so no storage key is stored on the server.
 import { backup, DatabaseSync } from 'node:sqlite';
 import {
+  realpathSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -117,7 +118,16 @@ export async function uploadBackup(
   if (response.status !== 201) throw Error(`Blob upload failed (${response.status}).`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+// Node resolves symlinks for the entry module, so compare real paths: invoked as
+// /opt/next-stop/current/server/backup.mjs (a symlinked release) must still run.
+function invokedDirectly() {
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+}
+if (invokedDirectly()) {
   const { positionals, values } = parseArgs({
     allowPositionals: true,
     options: {
