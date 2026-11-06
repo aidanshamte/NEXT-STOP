@@ -31,6 +31,11 @@ export async function createBackup(dbPath, outDir, now = new Date()) {
   } finally {
     source.close();
   }
+  // A backup is a single self-contained file: leave WAL mode so reading it later
+  // does not create -wal/-shm sidecar files next to it.
+  const copy = new DatabaseSync(file);
+  copy.exec('PRAGMA journal_mode=DELETE');
+  copy.close();
   verifyBackup(file);
   return file;
 }
@@ -80,6 +85,9 @@ export function pruneBackups(outDir, keep) {
     .map((name) => join(outDir, name))
     .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
   for (const file of files.slice(keep)) rmSync(file);
+  // Sidecars left by older versions or interrupted reads.
+  for (const name of readdirSync(outDir))
+    if (/^next-stop-.*\.db-(wal|shm)$/.test(name)) rmSync(join(outDir, name), { force: true });
   return files.slice(keep).length;
 }
 

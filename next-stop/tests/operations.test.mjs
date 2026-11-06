@@ -137,6 +137,7 @@ test('online backup is verified and restore brings back exact data while keeping
     // Backup while the database is open and in WAL mode, as in production.
     const file = await createBackup(path, join(dir, 'backups'));
     assert.deepEqual(verifyBackup(file).counts.users, 1);
+    assert.ok(!existsSync(file + '-wal') && !existsSync(file + '-shm'), 'backup is a single file');
     db.prepare(
       "INSERT INTO users(id,name,email,password) VALUES ('u2','Later','l@example.com','x:y')",
     ).run();

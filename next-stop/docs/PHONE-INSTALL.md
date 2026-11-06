@@ -6,7 +6,7 @@ Use this once the API is deployed to Azure (DEPLOY-AZURE.md). Phones talk to `ht
 
 1. Choose permanent app identifiers first. `com.nextstop.app` in `app.config.ts` is a placeholder; replace it with one your team controls (for example `edu.yourschool.nextstop` or `com.yourcompany.nextstop`). Android package names cannot change after a Play Store release, and Google sign-in and Maps keys are tied to it.
 2. Set `EXPO_PUBLIC_API_URL` in the EAS `preview` environment (DEPLOY-AZURE.md step 8). The build fails on purpose if it is missing or not HTTPS.
-3. Android maps: create a Maps SDK for Android key restricted to your package name and the EAS signing certificate's SHA-1, and add `GOOGLE_MAPS_ANDROID_API_KEY` to the EAS `preview` environment as a secret. iOS uses Apple Maps and needs no key.
+3. Maps need no key: the app uses MapLibre with free OpenFreeMap tiles on both platforms.
 4. Build and install:
 
 ```bash
@@ -35,7 +35,6 @@ A public app-store release is not needed to test internally installed builds. Na
 
 ## Android: internal APK
 
-Configure a Google Maps Android SDK key for your package and signing certificate. Supply `GOOGLE_MAPS_ANDROID_API_KEY` in the build environment. It is an application key, so restrict it appropriately; do not commit unrestricted credentials. EAS environment variables can be set in your Expo project dashboard. For the profile below select the `preview` environment.
 
 Using Expo's build service:
 
@@ -117,7 +116,7 @@ The production profile sets `ALLOW_LOCAL_HTTP=0`; HTTPS is required. Switching t
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | Phone cannot open `/health`                 | Same LAN, correct computer IP, server bound to 0.0.0.0, firewall TCP 4000, no AP/client isolation                 |
 | `/health` opens but app refuses HTTP        | Install the `local-network` build; production build deliberately requires HTTPS                                   |
-| Map is blank                                | Android Maps SDK/key restrictions, signing fingerprint, internet for tiles; check GPS timestamp separately        |
+| Map is blank                                | Internet access for map tiles (openfreemap.org); the GPS status and timestamp still work without the map      |
 | Driver has no assigned shuttle              | Administrator approves the driver and creates a shuttle assigned to that driver                                   |
 | GPS remains offline                         | Active service, native build rather than Expo Go, precise + background permissions, outdoor fix                   |
 | GPS stops on lock                           | Always/all-time permission, background modes, Android foreground service/battery settings; record device evidence |

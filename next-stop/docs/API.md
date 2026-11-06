@@ -50,7 +50,7 @@ The channel supports one institution per connection. Pending members can subscri
 - `ALLOWED_ORIGINS`: exact comma-separated browser origins; defaults http://localhost:8081 and http://localhost:19006
 - `ALLOW_LOCAL_HTTP`: native build flag, 1 only for the local-network internal build; production profile forces 0
 - `EXPO_PUBLIC_API_URL`: developer-configured backend origin for installed apps; Expo development may derive the API host automatically. There is no user server-entry screen.
-- `GOOGLE_MAPS_ANDROID_API_KEY`: build configuration for the Android map SDK
+- Maps use MapLibre with OpenFreeMap tiles; no map API key is needed.
 
 `npm run setup` is the trusted local operator bootstrap path. There is no public administrator-signup or institution-creation API.
 

@@ -32,7 +32,7 @@ Goal: a verified student and an approved driver, using installed apps on separat
 - [ ] Approve the Azure cost estimate, then provision (DEPLOY-AZURE.md steps 1–4)
 - [ ] Confirm the Bicep template compiles (`az bicep build`; also runs in CI). Not compiled here: downloading the Bicep CLI was blocked in this session
 - [ ] Choose an email provider and put SMTP credentials on the VM (Azure Communication Services or another SMTP sender)
-- [ ] Google Cloud project: OAuth clients (web, iOS, Android with signing SHA-1) and Maps SDK for Android key
+- [ ] Google Cloud project: OAuth clients (web, Android with signing SHA-1; iOS later) and Firebase for Android push. No Maps key is needed (MapLibre + OpenFreeMap)
 - [ ] Choose permanent app identifiers (replace the `com.nextstop.app` placeholder)
 - [ ] Expo account + `eas init`; Apple Developer Program membership for iPhone installs
 - [ ] First deploy; restore drill on the VM; record results

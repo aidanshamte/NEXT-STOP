@@ -41,6 +41,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: allowLocalHttp ? 'NEXT STOP Local' : 'NEXT STOP',
     slug: 'next-stop',
+    owner: 'aidanshamte',
     scheme: 'nextstop',
     version: '0.4.0',
     orientation: 'portrait',
@@ -71,7 +72,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     extra: {
       ...config.extra,
       allowLocalHttp,
-      ...(process.env.EAS_PROJECT_ID ? { eas: { projectId: process.env.EAS_PROJECT_ID } } : {}),
+      // Expo project (owner aidanshamte). Used by EAS Build and for push notification tokens.
+      eas: { projectId: process.env.EAS_PROJECT_ID || 'dabf6a44-450a-41a8-9af4-4a4999c478d2' },
     },
     plugins: [
       ['./plugins/withLocalTransport.cjs', { allowLocalHttp }],

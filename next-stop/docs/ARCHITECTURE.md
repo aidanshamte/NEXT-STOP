@@ -66,5 +66,5 @@ Synchronous password hashing and in-process limits suit a pilot, not fleet scale
 - Expo SDK 58 location: https://docs.expo.dev/versions/v58.0.0/sdk/location/
 - Expo TaskManager: https://docs.expo.dev/versions/v58.0.0/sdk/task-manager/
 - Expo build properties: https://docs.expo.dev/versions/v58.0.0/sdk/build-properties/
-- React Native Maps: https://github.com/react-native-maps/react-native-maps
+- MapLibre GL JS: https://maplibre.org/ · OpenFreeMap tiles: https://openfreemap.org/ (free, no key; attribution required and shown)
 - Apple ATS exceptions: https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsallowsarbitraryloads
