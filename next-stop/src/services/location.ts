@@ -1,20 +1,24 @@
 import { Platform } from 'react-native';
-import Constants from 'expo-constants';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { API_URL, api } from './api';
+import { expoGoLimits, isExpoGo } from './runtime';
+
 import {
   GPS_TASK,
   readTrackingContext,
   writeTrackingContext,
   clearTrackingContext,
 } from './backgroundLocation';
+const KEEP_AWAKE = 'next-stop-driver-gps';
 let foreground: Location.LocationSubscription | null = null;
 let foregroundContext: { institutionId: string; tripId: string; serverUrl: string } | null = null;
 export async function stopDriverGps() {
   foreground?.remove();
   foreground = null;
   foregroundContext = null;
+  if (isExpoGo) deactivateKeepAwake(KEEP_AWAKE);
   // Remove credentials/context first, so a pending headless callback cannot start another upload.
   await clearTrackingContext();
   if (
@@ -25,7 +29,7 @@ export async function stopDriverGps() {
     await Location.stopLocationUpdatesAsync(GPS_TASK);
 }
 export async function currentTracking() {
-  if (Platform.OS === 'web') return foregroundContext;
+  if (Platform.OS === 'web' || isExpoGo) return foregroundContext;
   const context = await readTrackingContext();
   if (!context) return null;
   if (
@@ -43,8 +47,10 @@ export async function startDriverGps(
   const permission = await Location.requestForegroundPermissionsAsync();
   if (permission.status !== 'granted')
     throw Error('Grant precise location access to share the shuttle GPS.');
-  if (Platform.OS === 'web') {
+  // Web and Expo Go: foreground tracking only (no background task is available).
+  if (Platform.OS === 'web' || isExpoGo) {
     foreground?.remove();
+    if (isExpoGo) await activateKeepAwakeAsync(KEEP_AWAKE);
     foreground = await Location.watchPositionAsync(
       { accuracy: Location.Accuracy.High, distanceInterval: 0, timeInterval: 3000 },
       (location) => {
@@ -58,16 +64,26 @@ export async function startDriverGps(
           accuracy: location.coords.accuracy,
           capturedAt: location.timestamp,
         })
-          .then(() => onStatus('Browser GPS shared. Keep this page open.'))
+          .then(() =>
+            onStatus(
+              isExpoGo
+                ? `GPS shared at ${new Date(location.timestamp).toLocaleTimeString()}. Keep NEXT STOP open.`
+                : 'Browser GPS shared. Keep this page open.',
+            ),
+          )
           .catch((e) => onStatus(e.message));
       },
       onStatus,
     );
     foregroundContext = { institutionId, tripId, serverUrl: API_URL };
-    onStatus('Browser tracking is foreground only. Use the installed app for background GPS.');
+    onStatus(
+      isExpoGo
+        ? expoGoLimits.gps
+        : 'Browser tracking is foreground only. Use the installed app for background GPS.',
+    );
     return;
   }
-  if (Constants.executionEnvironment === 'storeClient' || !(await TaskManager.isAvailableAsync()))
+  if (!(await TaskManager.isAvailableAsync()))
     throw Error(
       'Background GPS requires an installed NEXT STOP native build, not Expo Go. See the phone installation guide.',
     );

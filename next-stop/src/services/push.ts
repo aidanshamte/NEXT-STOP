@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { AndroidImportance, IosAuthorizationStatus } from 'expo-notifications';
 import { api } from './api';
+import { expoGoLimits, isExpoGo } from './runtime';
 
 // Trip notifications through Expo Push Service (APNs on iOS, FCM on Android).
 // Delivery is best effort: the in-app live view remains the source of truth.
@@ -27,8 +28,7 @@ if (Platform.OS !== 'web')
 
 function unavailableReason(): string | null {
   if (Platform.OS === 'web') return 'Notifications are available in the installed app.';
-  if (Constants.executionEnvironment === 'storeClient' && Platform.OS === 'android')
-    return 'Notifications need the installed NEXT STOP app, not Expo Go.';
+  if (isExpoGo) return expoGoLimits.push;
   if (!(Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId))
     return 'Notifications are not configured in this build.';
   return null;

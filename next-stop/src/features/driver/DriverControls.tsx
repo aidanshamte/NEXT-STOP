@@ -1,3 +1,4 @@
+import { expoGoLimits, isExpoGo } from '../../services/runtime';
 import React from 'react';
 import { Text, View } from 'react-native';
 import { Button, Card, Field, Tag, s } from '../../components/UI';
@@ -65,7 +66,9 @@ export default function DriverControls({
           />
           <Text style={s.caption}>
             {gpsText ||
-              'The installed app requests background permission and shows a tracking indicator while sharing.'}
+              (isExpoGo
+                ? expoGoLimits.gps
+                : 'The installed app requests background permission and shows a tracking indicator while sharing.')}
           </Text>
           <View style={s.divider} />
           <Text style={s.heading}>Keep riders informed</Text>

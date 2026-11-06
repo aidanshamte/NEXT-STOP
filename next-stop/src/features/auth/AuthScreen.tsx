@@ -1,3 +1,4 @@
+import { expoGoLimits, isExpoGo } from '../../services/runtime';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -399,28 +400,34 @@ export default function AuthScreen({
                 )}
                 {(screen === 'signup' || screen === 'signin') && (
                   <>
-                    <GoogleButton
-                      clientId={
-                        options?.googleWebClientId ||
-                        process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
-                        ''
-                      }
-                      disabled={busy || !options?.googleEnabled}
-                      onCredential={async (idToken, challenge) => {
-                        await run(
-                          async () =>
-                            await finish(
-                              await api<AuthResult>('/auth/google', {
-                                idToken,
-                                platform: Platform.OS === 'web' ? 'web' : 'native',
-                                challenge,
-                              }),
-                            ),
-                        );
-                      }}
-                      onError={setError}
-                    />
-                    {!options?.googleEnabled && (
+                    {isExpoGo ? (
+                      <Text style={{ fontSize: 11, color: C.muted, textAlign: 'center' }}>
+                        {expoGoLimits.google}
+                      </Text>
+                    ) : (
+                      <GoogleButton
+                        clientId={
+                          options?.googleWebClientId ||
+                          process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+                          ''
+                        }
+                        disabled={busy || !options?.googleEnabled}
+                        onCredential={async (idToken, challenge) => {
+                          await run(
+                            async () =>
+                              await finish(
+                                await api<AuthResult>('/auth/google', {
+                                  idToken,
+                                  platform: Platform.OS === 'web' ? 'web' : 'native',
+                                  challenge,
+                                }),
+                              ),
+                          );
+                        }}
+                        onError={setError}
+                      />
+                    )}
+                    {!isExpoGo && !options?.googleEnabled && (
                       <Text style={{ fontSize: 10, color: C.muted, textAlign: 'center' }}>
                         Google sign-in is temporarily unavailable. You can continue with email.
                       </Text>

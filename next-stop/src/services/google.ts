@@ -1,9 +1,6 @@
-import Constants from 'expo-constants';
+import { expoGoLimits, isExpoGo } from './runtime';
 export async function googleCredential(configuredClientId?: string) {
-  if (Constants.executionEnvironment === 'storeClient')
-    throw Error(
-      'Google sign-in is available in the installed NEXT STOP app. You can use email in Expo Go.',
-    );
+  if (isExpoGo) throw Error(expoGoLimits.google);
   const webClientId = configuredClientId || process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
   if (!webClientId) throw Error('Google sign-in is not available yet. Please continue with email.');
