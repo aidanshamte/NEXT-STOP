@@ -1,20 +1,31 @@
-# NEXT STOP public HTTPS/WSS entry point.
-# Caddy obtains and renews the TLS certificate automatically for NEXT_STOP_DOMAIN
-# (set in /etc/next-stop/deploy.env, loaded by the caddy service drop-in).
-# No access log is configured on purpose: access logs would record client IPs and
-# query strings. The API writes its own privacy-safe request log.
+# NEXT STOP public HTTPS/WSS entry points.
+# Caddy obtains and renews TLS certificates automatically (Let's Encrypt, ZeroSSL fallback)
+# for every site below. Domains come from /etc/next-stop/deploy.env, loaded by the caddy
+# service drop-in. No access log is configured on purpose: access logs would record client
+# IPs and query strings. The API writes its own privacy-safe request log.
 {
 	admin localhost:2019
 }
 
-{$NEXT_STOP_DOMAIN} {
-	encode zstd gzip
+(api_headers) {
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options nosniff
 		Referrer-Policy no-referrer
 		-Server
 	}
+}
+
+# Exact backend routes. Everything else on the website is the web app.
+# tests/caddy-routes.test.mjs fails if a server route is missing here.
+(api_routes) {
+	@api path /health /institutions /me /memberships /snapshot /shares /stops /stops/* /trips /trips/* /requests /requests/* /members/* /account/* /push/* /auth/* /realtime
+}
+
+# Mobile apps and existing clients: API-only hostname (unchanged behaviour).
+{$NEXT_STOP_DOMAIN} {
+	encode zstd gzip
+	import api_headers
 	request_body {
 		max_size 64KB
 	}
@@ -22,4 +33,36 @@
 	# sends the address it observed, which the API trusts via TRUST_PROXY=1.
 	# WebSocket upgrades on /realtime are proxied automatically.
 	reverse_proxy 127.0.0.1:4000
+}
+
+# Web testing version: the app and its API on one origin.
+{$NEXT_STOP_WEB_DOMAIN} {
+	encode zstd gzip
+	import api_headers
+	import api_routes
+	handle @api {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy 127.0.0.1:4000
+	}
+	handle {
+		root * /opt/next-stop/current/web
+		header {
+			Content-Security-Policy "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' wss://{host} https://accounts.google.com/gsi/; frame-src https://www.openstreetmap.org https://accounts.google.com/gsi/; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+			Permissions-Policy "geolocation=(self), camera=(), microphone=()"
+		}
+		# Hashed build files never change; the page itself is always revalidated.
+		@hashed path /_expo/static/* /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@page not path /_expo/static/* /assets/*
+		header @page Cache-Control "no-cache"
+		# Deep links and refreshes: unknown paths load the app, which routes client-side.
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+www.{$NEXT_STOP_WEB_DOMAIN} {
+	redir https://{$NEXT_STOP_WEB_DOMAIN}{uri} permanent
 }

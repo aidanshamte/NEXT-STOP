@@ -50,9 +50,16 @@ jobs:
           [ -n "$R" ] || R="${GITHUB_SHA::12}"
           [[ "$R" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || { echo "Invalid release id"; exit 1; }
           echo "id=$R" >> "$GITHUB_OUTPUT"
+      - name: Build web testing version (same-origin API)
+        if: inputs.release_id == ''
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.WEB_URL }}
+        run: |
+          [ -n "$EXPO_PUBLIC_API_URL" ] || { echo "Set the WEB_URL repository variable"; exit 1; }
+          npx expo export --platform web --output-dir build/web
       - name: Package
         if: inputs.release_id == ''
-        run: bash deploy/package-release.sh "${{ steps.rel.outputs.id }}" build/release
+        run: bash deploy/package-release.sh "${{ steps.rel.outputs.id }}" build/release build/web
       - uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}

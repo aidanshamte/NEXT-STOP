@@ -35,8 +35,28 @@ export async function restoreServer() {
   }
   return API_URL;
 }
+// Web keeps the session in sessionStorage: it survives page refreshes, ends when the tab
+// closes, and is tied to the API origin. The site's Content-Security-Policy limits script
+// sources. Native builds use the device keychain/keystore (SecureStore).
+const WEB_SESSION = 'nextstop-session';
+function webStorage(): Storage | null {
+  try {
+    return typeof window !== 'undefined' ? window.sessionStorage : null;
+  } catch {
+    return null;
+  }
+}
 export async function restoreToken() {
-  if (Platform.OS !== 'web') {
+  if (Platform.OS === 'web') {
+    try {
+      const saved = JSON.parse(webStorage()?.getItem(WEB_SESSION) || 'null');
+      sessionToken = saved && saved.origin === API_URL ? saved.token : null;
+    } catch {
+      sessionToken = null;
+    }
+    return sessionToken;
+  }
+  {
     const origin = await SecureStore.getItemAsync('nextstop-session-origin');
     if (origin !== API_URL) {
       await setToken(null);
@@ -51,6 +71,14 @@ export function getToken() {
 }
 export async function setToken(token: string | null) {
   sessionToken = token;
+  if (Platform.OS === 'web') {
+    try {
+      if (token) webStorage()?.setItem(WEB_SESSION, JSON.stringify({ token, origin: API_URL }));
+      else webStorage()?.removeItem(WEB_SESSION);
+    } catch {
+      /* Storage unavailable (private mode): the session lasts until the page reloads. */
+    }
+  }
   if (Platform.OS !== 'web') {
     if (token) {
       const options = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };

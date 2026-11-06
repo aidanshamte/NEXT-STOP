@@ -17,6 +17,9 @@ param prefix string = 'nextstop'
 @maxLength(40)
 param dnsLabel string
 
+@description('Domain for the web testing version (DNS A records must point at the public IP; www redirects to it).')
+param webDomain string = 'nextstop.software'
+
 @description('VM size. B2ats v2 / B2pts v2 / B1s have 750 free hours per month for 12 months on eligible new accounts.')
 @allowed(['Standard_B2ats_v2', 'Standard_B1s', 'Standard_B2s'])
 param vmSize string = 'Standard_B2ats_v2'
@@ -52,7 +55,7 @@ var fqdn = '${dnsLabel}.${location}.cloudapp.azure.com'
 var blobEndpoint = 'https://${storageName}.blob.${environment().suffixes.storage}'
 var cloudInit = replace(
   replace(
-    replace(loadTextContent('cloud-init.yaml'), '__DOMAIN__', fqdn),
+    replace(replace(loadTextContent('cloud-init.yaml'), '__DOMAIN__', fqdn), '__WEB_DOMAIN__', webDomain),
     '__RELEASE_URL__',
     '${blobEndpoint}/releases'
   ),

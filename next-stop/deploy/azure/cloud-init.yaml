@@ -18,6 +18,7 @@ write_files:
     permissions: '0644'
     content: |
       NEXT_STOP_DOMAIN=__DOMAIN__
+      NEXT_STOP_WEB_DOMAIN=__WEB_DOMAIN__
       RELEASE_CONTAINER_URL=__RELEASE_URL__
       BACKUP_BLOB_CONTAINER_URL=__BACKUP_URL__
   - path: /etc/systemd/system/caddy.service.d/next-stop.conf
