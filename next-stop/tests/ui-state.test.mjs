@@ -76,6 +76,10 @@ test('the website map frame is the same document as the native map', () => {
   assert.match(MAP_HTML, /integrity="sha384-[A-Za-z0-9+/=]+" crossorigin="anonymous"><\/script>/);
   assert.match(MAP_HTML, /setText\(s\.name\)/, 'stop names are set as text, not HTML');
   assert.doesNotMatch(MAP_HTML, /innerHTML/);
+  // Without these, MapLibre in the sandboxed (opaque-origin) website frame never draws tiles.
+  assert.match(MAP_HTML, /Object\.defineProperty\(window, ?'caches'/);
+  assert.match(MAP_HTML, /maplibregl\.setWorkerUrl\(/);
+  assert.equal((MAP_HTML.match(/e\.data\.origin ?= ?location\.origin/g) || []).length, 2);
 });
 
 test('Caddy isolates the map frame and lets only the app page embed it', () => {

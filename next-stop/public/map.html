@@ -10,7 +10,23 @@
 .bus.stale{background:#8A949D}
 #recenter{position:absolute;right:10px;top:10px;z-index:2;width:40px;height:40px;border-radius:20px;border:0;background:#fff;color:#11243A;font-size:20px;box-shadow:0 1px 6px rgba(0,0,0,.25)}</style></head>
 <body><div id="map"></div><button id="recenter" type="button" aria-label="Recenter map">&#8982;</button>
+<script>
+// Website only: the frame is sandboxed without same-origin access (an opaque origin), so it can
+// never read the site's session. Two MapLibre assumptions break there and are adjusted:
+// 1. Reading window.caches throws; MapLibre's optional tile cache checks it, so it is hidden.
+// 2. MapLibre drops worker messages whose "origin" field differs from location.origin, and the
+//    page and its blob worker report different origins. Messages on this channel can only come
+//    from the frame's own worker, so the field is set to the receiver's origin on both sides.
+var SANDBOXED=self.origin==='null';
+var SYNC_ORIGIN='var a=self.addEventListener;self.addEventListener=function(t,f,o){if(t==="message"&&typeof f==="function"){var g=f;f=function(e){if(e.data&&typeof e.data==="object"&&"origin"in e.data)e.data.origin=location.origin;return g.call(this,e)}}return a.call(this,t,f,o)};';
+if(SANDBOXED){try{Object.defineProperty(window,'caches',{value:undefined,configurable:true})}catch(e){}
+ var wa=Worker.prototype.addEventListener;Worker.prototype.addEventListener=function(t,f,o){if(t==='message'&&typeof f==='function'){var g=f;f=function(e){if(e.data&&typeof e.data==='object'&&'origin'in e.data)e.data.origin=location.origin;return g.call(this,e)}}return wa.call(this,t,f,o)}}
+</script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous"></script><script>
+// Worker side: a wrapper applies the same adjustment, then loads MapLibre's own worker code.
+if(SANDBOXED){try{var orig=maplibregl.getWorkerUrl();
+ maplibregl.setWorkerUrl(URL.createObjectURL(new Blob([SYNC_ORIGIN+'importScripts('+JSON.stringify(orig)+')'],{type:'text/javascript'})))}catch(e){}}
+</script><script>
 var map,stops={},bus=null,busAt=null,anim=0,fitted=false,moved=false,last=null;
 var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 function post(m){if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(m);else if(window.parent!==window)window.parent.postMessage(m,'*')}
