@@ -429,7 +429,7 @@ export default function AuthScreen({
                     )}
                     {!isExpoGo && !options?.googleEnabled && (
                       <Text style={{ fontSize: 10, color: C.muted, textAlign: 'center' }}>
-                        Google sign-in is temporarily unavailable. You can continue with email.
+                        Google sign-in isn’t set up for NEXT STOP yet. Please continue with email.
                       </Text>
                     )}
                     <View style={a.orRow}>
