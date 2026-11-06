@@ -252,3 +252,16 @@ az storage blob download --auth-mode login --account-name <storage> -c backups -
 **Costs:** check Cost Management → Cost analysis, filtered to resource group `nextstop-pilot`. To stop the VM's compute cost temporarily, run `az vm deallocate -g nextstop-pilot -n <vmName>`; disks and the IP still bill. To remove everything, run `az group delete -n nextstop-pilot` — **this deletes the database disk and the backups**.
 
 **Custom domain (later):** the GitHub Student Developer Pack includes domain offers. Point an A record at the public IP, change `NEXT_STOP_DOMAIN` in `/etc/next-stop/deploy.env`, restart Caddy, then rebuild the apps with the new `EXPO_PUBLIC_API_URL`.
+
+## Web testing version: https://nextstop.software
+
+The native app remains the product; the website is for testing.
+
+- **Same origin:** Caddy serves the web build (`/opt/next-stop/current/web`) at `nextstop.software` and proxies only the exact API routes and `/realtime` to the backend (`deploy/Caddyfile`, `@api`). `tests/caddy-routes.test.mjs` fails if a new server route is missing from that list, which would otherwise return the website's HTML. All other paths fall back to `index.html`, so deep links and refreshes work.
+- `www.nextstop.software` redirects permanently (308) to the apex; HTTP redirects to HTTPS. Caddy obtains and renews all certificates automatically.
+- **Mobile clients are unaffected:** `nextstop-api.northcentralus.cloudapp.azure.com` keeps its own unchanged API-only site block and certificate.
+- **Settings:** `NEXT_STOP_WEB_DOMAIN=nextstop.software` in `/etc/next-stop/deploy.env`; `ALLOWED_ORIGINS=https://nextstop.software` in `/etc/next-stop/next-stop.env`. The GitHub variable `WEB_URL=https://nextstop.software` sets the web build's API address. The web bundle contains no secrets (only `EXPO_PUBLIC_API_URL`).
+- **Browser security:** strict Content-Security-Policy (own scripts only, plus Google Identity Services), HSTS, `frame-ancestors 'none'`. Web sessions are kept in `sessionStorage`: they survive refresh, end when the tab closes, and are bound to the API origin.
+- **DNS (Name.com, nameservers unchanged):** `A @ 52.159.95.124` (the VM's static Standard IP) and `CNAME www nextstop.software`, TTL 300. The domain has no MX/TXT records.
+- **Google web sign-in:** when the Web OAuth client is created, add `https://nextstop.software` under _Authorized JavaScript origins_.
+- **Verify** (read-only): `node scripts/verify-web.mjs`.
