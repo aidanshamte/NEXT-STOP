@@ -1,4 +1,4 @@
-# Architecture — real local service
+# Architecture
 
 The Expo app connects to a Node 24 HTTP/WebSocket server with SQLite persistence. There is no demo runtime, simulated vehicle source, or automatic institution/route seed. The setup CLI creates a real institution and initial administrator; approved administrators configure actual stops and assign shuttles through Dispatch.
 
@@ -42,11 +42,24 @@ Students grant/revoke parent email access only to approved parent memberships in
 
 Verified child guardianship, school-managed child accounts, and handover workflows need separate implementation before school-age deployment. Current sharing models an adult student's choice.
 
-## Local versus production
+## Hosted pilot (Azure)
 
-Local service needs phones and the server computer on a reachable shared network, a firewall path to TCP 4000, and an awake computer. GPS and realtime messages do not need cloud hosting; map tiles can require internet. Wi-Fi client isolation can prevent connectivity. Outside the LAN, a secure reachable server/network is needed.
+```
+phone app ──HTTPS / WSS──▶ Caddy :443 (TLS, Let's Encrypt) ──▶ Node API 127.0.0.1:4000 ──▶ SQLite on data disk
+                                                              └─ daily verified backup ──▶ Blob storage (35 days)
+```
 
-SQLite, synchronous password hashing, and a single-process rate limiter support this small deployment; they are not a fleet-scale architecture. Next production work includes managed PostgreSQL/migrations, audit and retention controls, account suspension, durable notification delivery, deployment ownership, monitoring, backups/restore testing, and load/security review.
+- **One process, one instance.** Realtime subscriptions and rate limits are in memory, and all writes are serialized in one Node process, so pickup and capacity changes cannot race. Running a second instance would split realtime delivery; do not scale out without the shared event channel in ROADMAP.md.
+- **Durability:** the database is on a separate managed disk that survives VM rebuilds and deploys. Schema changes are versioned migrations (`PRAGMA user_version`). Each deploy takes a verified backup first.
+- **Secrets:** `/etc/next-stop/next-stop.env` on the VM only (root:nextstop 640). Storage access uses the VM's managed identity; no storage keys exist (shared-key access is disabled).
+- **Logs:** JSON lines to journald with method, path, status and duration only.
+- **Deploy:** release packages carry the server and its deploy config. The release script switches a symlink and waits for `/health` to report the new release id; otherwise it rolls back (DEPLOY-AZURE.md).
+
+## Local development
+
+Local service needs phones and the server computer on a reachable shared network, a firewall path to TCP 4000, and an awake computer. It is for development only; pilots use the hosted API.
+
+Synchronous password hashing and in-process limits suit a pilot, not fleet scale. Remaining production work is tracked in ROADMAP.md (PostgreSQL path, audit logs, push notifications, load/security review).
 
 ## References
 

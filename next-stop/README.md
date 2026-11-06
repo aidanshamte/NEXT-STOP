@@ -4,7 +4,7 @@
 
 A school and college shuttle app with actual accounts, institution permissions, pickup requests, driver GPS, parent-authorized trip sharing, and an authenticated live connection. **There is no demo mode or simulated vehicle feed.** A new database is empty until you create your institution and register people.
 
-The server can run on your computer. Android and iPhone apps connect to it over the same Wi-Fi; a public cloud backend is not required for that local test. Physical-device GPS and signed installation still need to be performed on your devices. This repository contains source, not an already signed APK/IPA.
+For a real pilot, the API runs on an Azure VM behind HTTPS, so installed phone apps work over any cellular or Wi-Fi connection: see **[docs/DEPLOY-AZURE.md](docs/DEPLOY-AZURE.md)** (resources, costs, deploy, backups, rollback) and **[docs/ACCEPTANCE.md](docs/ACCEPTANCE.md)** (two-phone test). The server can also run on your computer for development over the same Wi-Fi. **Current status, blockers and next tasks: [docs/ROADMAP.md](docs/ROADMAP.md). What is actually verified: [docs/VALIDATION.md](docs/VALIDATION.md).** This repository contains source, not an already signed APK/IPA, and nothing has been deployed yet.
 
 ## 1. Configure services and start the API
 
@@ -61,7 +61,9 @@ Driver GPS → your computer's server → authenticated WebSocket event → auth
 - `src/hooks/useLiveSnapshot.ts` — scoped snapshots, live events, recovery
 - `src/services/` — server configuration, secure sessions, realtime client, GPS task
 - `src/components/` — shared UI, original brand mark, native/web maps
-- `server/` — HTTP + WebSocket server, SQLite, setup and authorization
+- `server/` — HTTP + WebSocket server, SQLite migrations, backup/restore, setup and authorization (own `package.json` for deployment)
+- `deploy/` — Azure Bicep template, cloud-init, Caddy, systemd units, release/rollback scripts
+- `../.github/workflows/` — CI checks, manual Azure deploy, hourly uptime check
 - `tests/` — real HTTP/WS clients, access boundaries, persistence, native-config checks
 - `docs/` — installation, architecture, API, brand guide, roadmap, validation record
 - `AGENTS.md` — instructions for continued Codex development
@@ -78,23 +80,8 @@ npx expo export --platform ios --platform android --output-dir build/native
 
 Exports validate JavaScript/native module bundling; they are not signed native builds or device acceptance tests. GitHub Actions runs lint, types, tests, and web export.
 
-## Continue in GitHub and Codex
+## Continuing development
 
-Create an empty GitHub repository, then run inside this folder:
+Read AGENTS.md and docs/ROADMAP.md first. Work is committed locally in https://github.com/aidanshamte/NEXT-STOP.git; push when you are ready for CI to run. Do not report device, provider or deployment results as passing until they have actually been run and recorded in docs/VALIDATION.md.
 
-```bash
-git init
-git add .
-git commit -m "Initialize NEXT STOP live local app"
-git branch -M main
-git remote add origin https://github.com/YOUR-USERNAME/next-stop.git
-git push -u origin main
-```
-
-Or, with GitHub CLI already authenticated: `gh repo create next-stop --private --source=. --remote=origin --push`.
-
-Suggested Codex task:
-
-> Read AGENTS.md, README.md, docs/PHONE-INSTALL.md and docs/ROADMAP.md. Run the checks, then help me build and install NEXT STOP on Android and iPhone. Keep all transport data real. Preserve institution isolation, approved-driver assignment, and student-controlled sharing. Do not report device tests as passing until they actually run.
-
-No remote GitHub repository, cloud server, store listing, or signed app binary has been created by this source delivery. Store release, push notifications, route optimization, ETA and fleet-scale infrastructure are unfinished. Password recovery is implemented; external mail/Google configuration and live-device verification remain required. Source licensing and brand availability remain your team's decisions.
+Store release, push notifications, route optimization, ETA and multi-instance infrastructure are unfinished (see ROADMAP.md). Source licensing and brand availability remain your team's decisions.

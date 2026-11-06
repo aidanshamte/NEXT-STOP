@@ -25,7 +25,17 @@ Check package.json's Expo major and matching versioned docs before changing Expo
 
 ## Next work
 
-Follow docs/ROADMAP.md. First get signed native builds onto both physical devices and run the actual journey/lock-screen/disconnect acceptance test. Do not substitute bundling for device results. Continue extracting App.tsx into feature screens without changing authorization or transport behavior.
+docs/ROADMAP.md is the living checklist: read it first and update it in the same commit as your work. The current goal is Milestone 1: deploy the API to Azure (docs/DEPLOY-AZURE.md), build `preview` apps, and run docs/ACCEPTANCE.md on two phones on different networks. Record evidence in docs/VALIDATION.md. Do not substitute bundling, web rendering or mocked providers for device/provider results.
+
+## Hosted deployment invariants
+
+- The API runs as exactly one instance (in-memory realtime hub and limits). Do not add instances, autoscaling or a second VM without first adding shared event distribution.
+- SQLite stays on the attached data disk (`/var/lib/next-stop`), never on Azure Files/SMB or App Service storage.
+- Schema changes go in `server/db.mjs` as a new migration step appended to the list; never edit an applied step. Existing rows must survive. Add a test.
+- `server/package.json` + lockfile are what the VM installs. Add server runtime dependencies there (and at root for tests).
+- Never log tokens, IPs, request bodies, query strings, emails or coordinates. `tests/operations.test.mjs` checks this.
+- Secrets live only in `/etc/next-stop/next-stop.env` on the VM. Do not provision, deploy, push, or create billable resources without the owner's explicit approval.
+- Deploy scripts must keep LF line endings (.gitattributes) and pass `bash -n` and shellcheck in CI.
 
 ## Authentication and onboarding
 

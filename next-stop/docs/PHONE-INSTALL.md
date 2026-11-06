@@ -1,4 +1,27 @@
-# Install NEXT STOP and test real local GPS
+# Install NEXT STOP on Android and iPhone
+
+## Hosted pilot build (recommended): works on any cellular or Wi-Fi network
+
+Use this once the API is deployed to Azure (DEPLOY-AZURE.md). Phones talk to `https://<host>` directly; no laptop, shared Wi-Fi or Expo server is involved. Then run ACCEPTANCE.md.
+
+1. Choose permanent app identifiers first. `com.nextstop.app` in `app.config.ts` is a placeholder; replace it with one your team controls (for example `edu.yourschool.nextstop` or `com.yourcompany.nextstop`). Android package names cannot change after a Play Store release, and Google sign-in and Maps keys are tied to it.
+2. Set `EXPO_PUBLIC_API_URL` in the EAS `preview` environment (DEPLOY-AZURE.md step 8). The build fails on purpose if it is missing or not HTTPS.
+3. Android maps: create a Maps SDK for Android key restricted to your package name and the EAS signing certificate's SHA-1, and add `GOOGLE_MAPS_ANDROID_API_KEY` to the EAS `preview` environment as a secret. iOS uses Apple Maps and needs no key.
+4. Build and install:
+
+```bash
+npx eas-cli@latest login
+npx eas-cli@latest init                      # links an Expo project; set EAS_PROJECT_ID as it instructs
+npx eas-cli@latest build --profile preview --platform android   # APK: open the link on the phone
+npx eas-cli@latest device:create             # iPhone: register each test device first
+npx eas-cli@latest build --profile preview --platform ios       # needs a paid Apple Developer account
+```
+
+These builds bundle the JavaScript, connect only over HTTPS, and include background-location support. This is still an internal test build, not a store release.
+
+---
+
+# Local-network testing (optional, development only)
 
 ## Before building either platform
 
