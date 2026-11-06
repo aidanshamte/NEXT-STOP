@@ -2,9 +2,10 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { C } from '../../components/Brand';
 import { Button, Card, Icon, Tag, s } from '../../components/UI';
-import { nextStatus } from '../../domain';
+import { ago, isOpen, nextStatus } from '../../domain';
 import type { RideRequest, Role, Trip } from '../../domain';
-import { statusLabels } from '../workspace/types';
+import { Progress } from '../student/RiderHome';
+import { actionKey, statusLabels } from '../workspace/types';
 import type { Mutate } from '../workspace/types';
 
 const stages = ['requested', 'accepted', 'approaching', 'boarded', 'arrived'];
@@ -21,23 +22,38 @@ export default function RequestList({
   trips,
   stopName,
   busy,
+  pending = '',
   mutate,
+  now,
 }: {
   role: Role;
   requests: RideRequest[];
   trips: Trip[];
   stopName: (id: string) => string;
   busy: boolean;
+  pending?: string;
   mutate: Mutate;
+  now: number;
 }) {
   const operator = role === 'driver' || role === 'admin';
+  const open = requests.filter((r) => isOpen(r.status)).length;
+  // Open journeys first, then the most recent closed ones.
+  const ordered = requests
+    .slice()
+    .reverse()
+    .sort((a, b) => Number(isOpen(b.status)) - Number(isOpen(a.status)));
+  const change = (r: RideRequest, status: string, success: string) =>
+    mutate('/requests/status', { requestId: r.id, status }, success);
   return (
     <Card>
       <View style={s.row}>
         <Text style={s.title}>
           {operator ? 'Pickup queue' : role === 'parent' ? 'Shared journeys' : 'Your journeys'}
         </Text>
-        <Tag text={`${requests.length} journeys`} tone="gray" />
+        <Tag
+          text={open ? `${open} open` : `${requests.length} total`}
+          tone={open ? 'coral' : 'gray'}
+        />
       </View>
       {!requests.length ? (
         <View style={s.empty}>
@@ -56,30 +72,29 @@ export default function RequestList({
           </Text>
         </View>
       ) : (
-        requests
-          .slice()
-          .reverse()
-          .map((r) => {
-            const next = nextStatus(r.status);
-            return (
-              <View style={s.request} key={r.id}>
-                <View style={[s.row, { flexWrap: 'wrap' }]}>
-                  <Text style={s.heading}>{r.student_name}</Text>
-                  <Tag
-                    text={statusLabels[r.status]}
-                    tone={r.status === 'cancelled' ? 'gray' : 'green'}
-                  />
-                </View>
-                <Text style={s.body}>
-                  {stopName(r.stop_id)} → {stopName(r.destination_id)}
-                </Text>
-                <Text style={s.caption}>
-                  {trips.find((t) => t.id === r.trip_id)?.name || 'Assigned shuttle'} · updated{' '}
-                  {new Date(r.updated_at || r.created_at).toLocaleTimeString([], {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })}
-                </Text>
+        ordered.map((r) => {
+          const next = nextStatus(r.status);
+          const inFlight = pending === actionKey('/requests/status', { requestId: r.id });
+          return (
+            <View style={s.request} key={r.id}>
+              <View style={[s.row, { flexWrap: 'wrap' }]}>
+                <Text style={s.heading}>{r.student_name}</Text>
+                <Tag
+                  text={statusLabels[r.status]}
+                  tone={!isOpen(r.status) ? 'gray' : r.status === 'requested' ? 'coral' : 'green'}
+                />
+              </View>
+              <Text style={s.body}>
+                {stopName(r.stop_id)} → {stopName(r.destination_id)}
+              </Text>
+              <Text style={s.caption}>
+                {trips.find((t) => t.id === r.trip_id)?.name || 'Assigned shuttle'} · updated{' '}
+                {ago(r.updated_at || r.created_at, now)}
+              </Text>
+              {!operator && isOpen(r.status) && (
+                <Progress status={r.status} observer={role === 'parent'} />
+              )}
+              {operator && isOpen(r.status) && (
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   {stages.map((stage, i) => (
                     <View
@@ -93,51 +108,37 @@ export default function RequestList({
                     />
                   ))}
                 </View>
-                {operator && next && (
-                  <Button
-                    disabled={busy}
-                    label={actionLabel[r.status]}
-                    onPress={() =>
-                      mutate(
-                        '/requests/status',
-                        { requestId: r.id, status: next },
-                        'Journey updated.',
-                      )
-                    }
-                  />
-                )}
-                {operator && r.status === 'accepted' && (
+              )}
+              {operator && next && (
+                <Button
+                  large
+                  disabled={busy}
+                  loading={inFlight}
+                  loadingLabel="Updating…"
+                  label={actionLabel[r.status]}
+                  onPress={() => change(r, next, 'Journey updated.')}
+                />
+              )}
+              {operator && r.status === 'accepted' && (
+                <Button
+                  secondary
+                  disabled={busy}
+                  label="Rider boarded"
+                  onPress={() => change(r, 'boarded', 'Boarding confirmed.')}
+                />
+              )}
+              {['student', 'driver', 'admin'].includes(role) &&
+                ['requested', 'accepted', 'approaching'].includes(r.status) && (
                   <Button
                     secondary
                     disabled={busy}
-                    label="Rider boarded"
-                    onPress={() =>
-                      mutate(
-                        '/requests/status',
-                        { requestId: r.id, status: 'boarded' },
-                        'Boarding confirmed.',
-                      )
-                    }
+                    label="Cancel request"
+                    onPress={() => change(r, 'cancelled', 'Request cancelled.')}
                   />
                 )}
-                {['student', 'driver', 'admin'].includes(role) &&
-                  ['requested', 'accepted', 'approaching'].includes(r.status) && (
-                    <Button
-                      secondary
-                      disabled={busy}
-                      label="Cancel request"
-                      onPress={() =>
-                        mutate(
-                          '/requests/status',
-                          { requestId: r.id, status: 'cancelled' },
-                          'Request cancelled.',
-                        )
-                      }
-                    />
-                  )}
-              </View>
-            );
-          })
+            </View>
+          );
+        })
       )}
     </Card>
   );

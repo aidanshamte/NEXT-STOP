@@ -54,6 +54,19 @@ Tests use synthetic identities, an injected mail-delivery function and an inject
 
 **Not verified by me:** signing in on the website with a real account, live updates between two signed-in sessions, and reconnection after a network drop in the browser (these need the owner's account; the reconnect logic has automated server-side coverage only). Google sign-in on the web needs the Web OAuth client with origin `https://nextstop.software`.
 
+## 2d. Passed: interface redesign from the Stitch reference (2026-11-06, local, web rendering only)
+
+Test environment: a throwaway local database labelled "Test College" (never deployed), the API on port 4100 and the Expo web build in headless Chrome with phone emulation. `npm test`: **71 tests, 0 failures**, plus lint, typecheck, Prettier and a web export that includes `map.html`.
+
+- **Before/after at 375 px** for student (pickup form and active request), driver, parent and dispatch: no horizontal overflow, no console errors. Also checked at 320 px, at 250 px (a 375 px phone at 150% zoom) and at 1280 px desktop width.
+- **Website map:** previously one generic OpenStreetMap pin and no stops. It now uses the same MapLibre document as the native app (`public/map.html`, generated from `src/components/mapHtml.ts`, pinned with subresource integrity, sandboxed without same-origin access). Inside the frame, DevTools confirmed 4 confirmed stops, the vehicle and a fitted camera. The base-map tiles did not finish drawing in this headless renderer; markers did.
+- **Bug found and fixed:** the map frame waited for MapLibre's `load` event, which never fired here, so no data reached it. The frame now accepts data as soon as the map exists.
+- **Pickup lifecycle through the real UI** in two tabs (rider and driver): request (tapped three times, with 1.5 s simulated latency) showed _Sending request…_ and created exactly one request. Accept → Approaching → Boarding → Drop-off each reached the rider in 230–280 ms over the live connection with no reload; the rider then returned to the pickup form.
+- **Bug found and fixed:** the rider's pending label never showed because the in-flight key included the shuttle id; a regression test covers it.
+- **Connection states:** DevTools network emulation took the rider offline, then back online. The header went _Live_ → _Offline · data from 17s ago_ (with the existing notice) → _Live_ again without a refresh. A vehicle fix set two minutes old showed _last GPS 2 min ago_ in amber with a grey marker.
+
+**Not verified:** the redesign on a physical phone (native WebView map, VoiceOver/TalkBack, OS-level dynamic type), and the website map against the production Content-Security-Policy until it is deployed.
+
 ## 3. Not yet tested: needs the owner's accounts, money or devices
 
 - **Automatic rollback on a failing release** has not been triggered on the VM (only healthy releases were deployed). Budget/alert emails have not fired.

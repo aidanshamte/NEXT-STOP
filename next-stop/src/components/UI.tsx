@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './Brand';
 export type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -20,53 +20,98 @@ export function Button({
   secondary = false,
   disabled = false,
   icon,
+  loading = false,
+  loadingLabel,
+  large = false,
+  tone,
 }: {
   label: string;
   onPress: () => void;
   secondary?: boolean;
   disabled?: boolean;
   icon?: IconName;
+  /** Shows a spinner and blocks repeat presses while the action is in flight. */
+  loading?: boolean;
+  loadingLabel?: string;
+  large?: boolean;
+  tone?: 'navy';
 }) {
+  const fg = secondary ? C.navy : 'white';
+  const text = loading ? loadingLabel || label : label;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
-      disabled={disabled}
+      accessibilityLabel={text}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
+      disabled={disabled || loading}
       onPress={onPress}
       style={({ pressed }) => [
         s.button,
+        large && s.buttonLarge,
+        tone === 'navy' && { backgroundColor: C.navy },
         secondary && s.secondary,
-        disabled && { opacity: 0.45 },
-        pressed && { opacity: 0.8 },
+        disabled && !loading && { opacity: 0.45 },
+        pressed && { opacity: 0.85 },
       ]}
     >
-      {icon && <Icon name={icon} color={secondary ? C.navy : 'white'} />}
-      <Text style={[s.buttonText, secondary && { color: C.navy }]}>{label}</Text>
+      {loading ? (
+        <ActivityIndicator color={fg} size="small" />
+      ) : (
+        icon && <Icon name={icon} color={fg} size={large ? 22 : 20} />
+      )}
+      <Text style={[s.buttonText, large && { fontSize: 16 }, secondary && { color: C.navy }]}>
+        {text}
+      </Text>
     </Pressable>
   );
 }
 export function Card({ children, style }: { children: React.ReactNode; style?: object }) {
   return <View style={[s.card, style]}>{children}</View>;
 }
-export function Tag({ text, tone = 'green' }: { text: string; tone?: 'green' | 'coral' | 'gray' }) {
+export type Tone = 'green' | 'coral' | 'gray' | 'amber' | 'navy';
+const tones: Record<Tone, [string, string]> = {
+  green: [C.mint, C.green],
+  coral: ['#FFF0E9', '#C2381F'],
+  gray: ['#EDF1F5', '#56636F'],
+  amber: ['#FFF4D6', '#8A5A00'],
+  navy: [C.navy, 'white'],
+};
+export function Tag({ text, tone = 'green' }: { text: string; tone?: Tone }) {
+  const [bg, fg] = tones[tone];
+  return (
+    <View style={[s.tag, { backgroundColor: bg }]}>
+      <Text style={{ fontSize: 11, fontWeight: '700', color: fg }}>{text}</Text>
+    </View>
+  );
+}
+/** A pill with a coloured dot, for connection and GPS states. Colour is never the only cue. */
+export function StatusChip({
+  text,
+  tone,
+  solid = false,
+}: {
+  text: string;
+  tone: Tone;
+  solid?: boolean;
+}) {
+  const [bg, fg] = tones[tone];
   return (
     <View
-      style={[
-        s.tag,
-        { backgroundColor: tone === 'green' ? C.mint : tone === 'coral' ? '#FFF0E9' : '#EDF1F5' },
-      ]}
+      style={[s.chip, { backgroundColor: solid ? 'rgba(255,255,255,0.95)' : bg }]}
+      accessible
+      accessibilityLabel={text}
     >
-      <Text
-        style={{
-          fontSize: 10,
-          fontWeight: '700',
-          color: tone === 'green' ? C.green : tone === 'coral' ? C.coral : C.muted,
-        }}
-      >
+      <View
+        style={[s.dot, { marginTop: 1 }, { backgroundColor: tone === 'gray' ? '#8A949D' : fg }]}
+      />
+      <Text style={{ fontSize: 12, fontWeight: '700', color: solid ? C.navy : fg, flexShrink: 1 }}>
         {text}
       </Text>
     </View>
   );
+}
+export function SectionLabel({ children }: { children: string }) {
+  return <Text style={s.eyebrow}>{children.toUpperCase()}</Text>;
 }
 export function Field({
   label,
@@ -117,10 +162,9 @@ export const s = StyleSheet.create({
   card: {
     backgroundColor: 'white',
     borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: C.line,
+    padding: 20,
     gap: 14,
+    boxShadow: '0 2px 14px rgba(17, 36, 58, 0.07)',
   },
   darkCard: { backgroundColor: C.navy, borderRadius: 22, padding: 24, gap: 18 },
   title: { fontSize: 20, fontWeight: '700', letterSpacing: -0.6, color: C.navy },
@@ -129,7 +173,7 @@ export const s = StyleSheet.create({
   body: { fontSize: 14, color: C.muted, lineHeight: 23 },
   caption: { fontSize: 11, color: C.muted, lineHeight: 18 },
   label: { fontSize: 11, fontWeight: '700', color: C.navy, letterSpacing: 0.5 },
-  eyebrow: { fontSize: 10, color: C.muted, fontWeight: '700', letterSpacing: 1.5 },
+  eyebrow: { fontSize: 11, color: C.muted, fontWeight: '700', letterSpacing: 1.2 },
   input: {
     borderWidth: 1,
     borderColor: C.line,
@@ -142,7 +186,7 @@ export const s = StyleSheet.create({
   },
   button: {
     minHeight: 50,
-    borderRadius: 14,
+    borderRadius: 999,
     backgroundColor: C.coral,
     alignItems: 'center',
     justifyContent: 'center',
@@ -151,20 +195,33 @@ export const s = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 14,
   },
-  secondary: { backgroundColor: C.paper, borderWidth: 1, borderColor: C.line },
-  buttonText: { fontSize: 13, fontWeight: '700', color: 'white', textAlign: 'center' },
+  buttonLarge: { minHeight: 58 },
+  secondary: { backgroundColor: '#EEF2F5' },
+  buttonText: { fontSize: 14, fontWeight: '700', color: 'white', textAlign: 'center' },
   pills: { flexDirection: 'row', gap: 7, flexWrap: 'wrap' },
   pill: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: C.paper,
+    minHeight: 40,
+    justifyContent: 'center',
+    borderRadius: 999,
+    backgroundColor: '#EEF2F5',
   },
   pillActive: { backgroundColor: C.navy, borderColor: C.navy },
-  pillText: { fontSize: 11, fontWeight: '600', color: C.muted },
-  tag: { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 7, alignSelf: 'flex-start' },
+  pillText: { fontSize: 13, fontWeight: '600', color: '#4A5763' },
+  tag: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, alignSelf: 'flex-start' },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+    gap: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 999,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+  },
+  dot: { width: 8, height: 8, borderRadius: 4 },
   notice: {
     padding: 14,
     backgroundColor: C.mint,
@@ -188,10 +245,11 @@ export const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
-    padding: 12,
+    padding: 14,
+    minHeight: 52,
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 12,
+    borderRadius: 16,
   },
   request: { borderTopWidth: 1, borderColor: C.line, paddingTop: 18, gap: 12, marginTop: 6 },
   empty: { paddingVertical: 24, alignItems: 'center', gap: 12 },
@@ -201,8 +259,7 @@ export const s = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderColor: C.line,
+    boxShadow: '0 -2px 12px rgba(17, 36, 58, 0.06)',
     flexDirection: 'row',
     paddingBottom: 6,
   },

@@ -1,0 +1,71 @@
+// The live map document, shared by the native WebView (inline) and the website, which serves
+// the identical file as public/map.html in a sandboxed frame with its own narrow CSP.
+// Regenerate public/map.html with `node scripts/write-map-html.mjs` after editing; a test
+// fails if the two copies differ.
+//
+// MapLibre GL with OpenFreeMap vector tiles: no API key or billing account. Attribution
+// (OpenFreeMap, OpenMapTiles, OpenStreetMap) is rendered by the map. The vehicle position is
+// only ever the driver's reported GPS fix; stop names arrive as JSON and are set as text.
+const MAPLIBRE = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl';
+const JS_SRI = 'sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj';
+const CSS_SRI = 'sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V';
+
+export const MAP_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Shuttle map</title>
+<link rel="stylesheet" href="${MAPLIBRE}.css" integrity="${CSS_SRI}" crossorigin="anonymous">
+<style>html,body,#map{margin:0;height:100%;background:#E9EEF1;font-family:-apple-system,Roboto,sans-serif}
+.stop{width:12px;height:12px;border-radius:50%;box-sizing:content-box;background:#fff;border:3px solid #11243A}
+.stop.pickup{width:14px;height:14px;border-color:#EF543F;border-width:4px}
+.stop.dest{background:#11243A}
+.bus{width:24px;height:24px;border-radius:50%;background:#EF543F;border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.35)}
+.bus.stale{background:#8A949D}
+#recenter{position:absolute;right:10px;top:10px;z-index:2;width:40px;height:40px;border-radius:20px;border:0;background:#fff;color:#11243A;font-size:20px;box-shadow:0 1px 6px rgba(0,0,0,.25)}</style></head>
+<body><div id="map"></div><button id="recenter" type="button" aria-label="Recenter map">&#8982;</button>
+<script src="${MAPLIBRE}.js" integrity="${JS_SRI}" crossorigin="anonymous"></script><script>
+var map,stops={},bus=null,busAt=null,anim=0,fitted=false,moved=false,last=null;
+var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+function post(m){if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(m);else if(window.parent!==window)window.parent.postMessage(m,'*')}
+try{
+ map=new maplibregl.Map({container:'map',style:'https://tiles.openfreemap.org/styles/liberty',center:[0,0],zoom:1,attributionControl:{compact:true}});
+ map.on('dragstart',function(){moved=true});
+ // Markers and the camera work before the style finishes, so data is accepted at once.
+ post('ready');
+}catch(e){post('error')}
+function points(d){var p=d.stops.map(function(s){return[s.lng,s.lat]});if(d.bus)p.push([d.bus.lng,d.bus.lat]);return p}
+function fit(d){var p=points(d);if(!p.length)return;
+ var bb=p.reduce(function(b,x){return b.extend(x)},new maplibregl.LngLatBounds(p[0],p[0]));
+ map.fitBounds(bb,{padding:56,maxZoom:16,duration:0})}
+document.getElementById('recenter').onclick=function(){moved=false;if(last)fit(last)};
+// Glides the vehicle between nearby fixes; jumps (or reduced motion) snap instead.
+function moveBus(to){
+ cancelAnimationFrame(anim);
+ var from=busAt;busAt=to;
+ var far=!from||Math.abs(from[0]-to[0])+Math.abs(from[1]-to[1])>0.02;
+ if(reduce||far){bus.setLngLat(to);return}
+ var t0=performance.now();
+ (function step(t){var k=Math.min(1,(t-t0)/900);
+  bus.setLngLat([from[0]+(to[0]-from[0])*k,from[1]+(to[1]-from[1])*k]);
+  if(k<1)anim=requestAnimationFrame(step)})(t0);
+}
+window.update=function(d){
+ if(!map)return;last=d;
+ var seen={};
+ d.stops.forEach(function(s){var key=s.name+'|'+s.lat+'|'+s.lng;seen[key]=1;
+  var cls='stop'+(s.kind?' '+s.kind:'');var m=stops[key];
+  if(m){m.getElement().className=cls;return}
+  var el=document.createElement('div');el.className=cls;el.title=s.name;
+  stops[key]=new maplibregl.Marker({element:el}).setLngLat([s.lng,s.lat]).setPopup(new maplibregl.Popup({offset:10}).setText(s.name)).addTo(map)});
+ Object.keys(stops).forEach(function(k){if(!seen[k]){stops[k].remove();delete stops[k]}});
+ if(d.bus){var to=[d.bus.lng,d.bus.lat];
+  if(!bus){var b=document.createElement('div');bus=new maplibregl.Marker({element:b}).setLngLat(to).addTo(map);busAt=to}
+  else moveBus(to);
+  bus.getElement().className='bus'+(d.bus.stale?' stale':'')}
+ else if(bus){cancelAnimationFrame(anim);bus.remove();bus=null;busAt=null}
+ if(!fitted&&points(d).length){fit(d);fitted=true}
+ else if(d.bus&&!moved)map.easeTo({center:[d.bus.lng,d.bus.lat],duration:reduce?0:800});
+};
+// Website: the page sends data with postMessage; only the embedding page is listened to.
+window.addEventListener('message',function(e){if(e.source===window.parent&&e.data&&e.data.type==='update')window.update(e.data.data)});
+</script></body></html>
+`;

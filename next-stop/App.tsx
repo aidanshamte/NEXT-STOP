@@ -10,32 +10,47 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Brand, C } from './src/components/Brand';
-import { Button, Card, Icon, Tag, s } from './src/components/UI';
+import { Brand, C, Mark } from './src/components/Brand';
+import { Button, Card, Icon, StatusChip, s } from './src/components/UI';
+import type { Tone } from './src/components/UI';
 import { api, ApiError, restoreServer, restoreToken, setToken } from './src/services/api';
 import { disablePush, enablePush, onNotificationOpened } from './src/services/push';
 import type { PushState } from './src/services/push';
 import { currentTracking, startDriverGps, stopDriverGps } from './src/services/location';
 import { trackingStatus } from './src/services/backgroundLocation';
 import { useLiveSnapshot } from './src/hooks/useLiveSnapshot';
+import { useNow } from './src/hooks/useNow';
 import AuthScreen from './src/features/auth/AuthScreen';
 import JoinInstitution from './src/features/auth/JoinInstitution';
 import AccountPanel from './src/features/account/AccountPanel';
 import DispatchPanel from './src/features/dispatch/DispatchPanel';
 import RoutesPanel from './src/features/dispatch/RoutesPanel';
 import type { DispatchDraft } from './src/features/dispatch/DispatchPanel';
-import DriverControls from './src/features/driver/DriverControls';
+import DriverControls, { DriverUpdateForm } from './src/features/driver/DriverControls';
 import RequestList from './src/features/journeys/RequestList';
-import ShuttleMapCard from './src/features/journeys/ShuttleMapCard';
-import StudentControls from './src/features/student/StudentControls';
+import MapCard from './src/features/journeys/MapCard';
+import RiderHome from './src/features/student/RiderHome';
 import ServiceUpdates from './src/features/updates/ServiceUpdates';
 import { BottomNav, Sidebar, tabIds, workspaceTabs } from './src/features/workspace/Navigation';
 import type { Tab } from './src/features/workspace/Navigation';
 import Notices from './src/features/workspace/Notices';
 import { InstitutionChooser, ShuttleSelector } from './src/features/workspace/Pills';
-import { roleLabels } from './src/features/workspace/types';
+import { actionKey, roleLabels } from './src/features/workspace/types';
 import type { Me } from './src/features/workspace/types';
-import { isOpen } from './src/domain';
+import { ago, connectionState, isOpen } from './src/domain';
+import type { ConnectionState } from './src/domain';
+
+function connectionLabel(state: ConnectionState, lastSync: number | null, now: number) {
+  const since = lastSync ? ago(lastSync, now) : '';
+  const map: Record<ConnectionState, [string, Tone]> = {
+    connecting: ['Connecting…', 'gray'],
+    live: [`Live · updated ${since}`, 'green'],
+    reconnecting: [`Reconnecting · updated ${since}`, 'amber'],
+    stale: [`Delayed · updated ${since}`, 'amber'],
+    offline: [lastSync ? `Offline · data from ${since}` : 'Offline', 'coral'],
+  };
+  return map[state];
+}
 
 const emptyDispatchDraft: DispatchDraft = {
   stopLabel: '',
@@ -65,6 +80,8 @@ function Workspace() {
   const [me, setMe] = useState<Me | null>(null);
   const [sessionVersion, setSessionVersion] = useState(0);
   const [busy, setBusy] = useState(false),
+    // The one write in flight, so only the pressed control shows progress.
+    [pending, setPending] = useState(''),
     [error, setError] = useState(''),
     [message, setMessage] = useState('');
   const [tripId, setTripId] = useState(''),
@@ -96,6 +113,9 @@ function Workspace() {
     lastSync,
     refresh,
   } = useLiveSnapshot(org, !!me, unauthorized, sessionVersion);
+  const now = useNow(5000);
+  const connection = connectionState({ live, lastSync, syncError }, now);
+  const [connectionText, connectionTone] = connectionLabel(connection, lastSync, now);
   const role = data?.role || 'student';
   const institutionsVisible = me?.memberships || [];
   const institution = institutionsVisible.find((i) => i.id === org);
@@ -208,9 +228,10 @@ function Workspace() {
       listener.remove();
     };
   }, [me, org, trip?.id]);
-  async function run(action: () => Promise<void>) {
+  async function run(action: () => Promise<void>, key = '') {
     if (busy) return;
     setBusy(true);
+    setPending(key);
     setError('');
     setMessage('');
     try {
@@ -219,6 +240,7 @@ function Workspace() {
       setError((e as Error).message);
     } finally {
       setBusy(false);
+      setPending('');
     }
   }
   async function authenticated(token: string) {
@@ -293,15 +315,18 @@ function Workspace() {
     });
   }
   async function mutate(path: string, body: object, success: string) {
-    await run(async () => {
-      await api(path, { institutionId: org, ...body });
-      if (path === '/trips/service' && (body as { active?: boolean }).active === false) {
-        await stopDriverGps();
-        setGps(false);
-      }
-      refresh();
-      setMessage(success);
-    });
+    await run(
+      async () => {
+        await api(path, { institutionId: org, ...body });
+        if (path === '/trips/service' && (body as { active?: boolean }).active === false) {
+          await stopDriverGps();
+          setGps(false);
+        }
+        refresh();
+        setMessage(success);
+      },
+      actionKey(path, body),
+    );
   }
   async function toggleGps() {
     await run(async () => {
@@ -314,7 +339,7 @@ function Workspace() {
       if (!trip?.active) throw Error('Start service before sharing GPS.');
       await startDriverGps(org, trip.id, setGpsText);
       setGps(true);
-    });
+    }, 'gps');
   }
   if (restoring)
     return (
@@ -378,12 +403,30 @@ function Workspace() {
       trips={trips}
       stopName={stopName}
       busy={busy}
+      pending={pending}
       mutate={mutate}
+      now={now}
     />
   );
-  const roleControls =
+  const route = data?.routes?.find((r) => r.id === trip?.route_id);
+  const mapCard = (
+    <MapCard
+      stops={stops}
+      trip={trip}
+      route={route}
+      routeStops={data?.routeStops}
+      highlight={
+        // Only a parent follows one rider; operators see every stop equally.
+        role === 'parent' && request
+          ? { pickupId: request.stop_id, destinationId: request.destination_id }
+          : {}
+      }
+      now={now}
+    />
+  );
+  const overview =
     role === 'student' ? (
-      <StudentControls
+      <RiderHome
         stops={stops}
         routes={data?.routes || []}
         routeStops={data?.routeStops || []}
@@ -397,25 +440,44 @@ function Workspace() {
         setDestination={setDestination}
         stopName={stopName}
         busy={busy}
+        pending={pending}
         mutate={mutate}
-        onViewJourney={() => setTab('journeys')}
+        now={now}
       />
     ) : role === 'driver' ? (
-      <DriverControls
-        trip={trip}
-        shuttleSelector={shuttleSelector}
-        gps={gps}
-        gpsText={gpsText}
-        onToggleGps={toggleGps}
-        delay={delay}
-        setDelay={setDelay}
-        issue={issue}
-        setIssue={setIssue}
-        busy={busy}
-        mutate={mutate}
-      />
+      <>
+        <DriverControls
+          trip={trip}
+          trips={trips}
+          shuttleSelector={shuttleSelector}
+          gps={gps}
+          gpsText={gpsText}
+          onToggleGps={toggleGps}
+          busy={busy}
+          pending={pending}
+          mutate={mutate}
+          now={now}
+        />
+        {requestList}
+        {trip && (
+          <DriverUpdateForm
+            trip={trip}
+            delay={delay}
+            setDelay={setDelay}
+            issue={issue}
+            setIssue={setIssue}
+            busy={busy}
+            pending={pending}
+            mutate={mutate}
+          />
+        )}
+        {mapCard}
+      </>
     ) : role === 'admin' ? (
       <>
+        {trips.length > 1 && shuttleSelector}
+        {mapCard}
+        {requestList}
         <DispatchPanel
           members={data?.members || []}
           trips={trips}
@@ -439,14 +501,15 @@ function Workspace() {
         />
       </>
     ) : (
-      <Card>
-        <Icon name="heart-outline" size={30} color={C.coral} />
-        <Text style={s.title}>A journey you can follow.</Text>
-        <Text style={s.body}>
-          Driver-confirmed boarding and drop-off events appear here when the student shares their
-          journey. An arrival event does not verify a handover to a guardian.
+      <>
+        {requestList}
+        {trips.length > 1 && shuttleSelector}
+        {mapCard}
+        <Text style={s.caption}>
+          You see a student’s journey only while they share it with you. Boarding and drop-off are
+          confirmed by the driver; an arrival does not confirm a handover to a guardian.
         </Text>
-      </Card>
+      </>
     );
   return (
     <SafeAreaView style={s.safe}>
@@ -457,34 +520,34 @@ function Workspace() {
           <ScrollView
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{
-              padding: desktop ? 32 : 20,
+              padding: desktop ? 32 : 16,
               paddingBottom: 110,
-              maxWidth: 1350,
+              maxWidth: desktop ? 760 : undefined,
               width: '100%',
               alignSelf: 'center',
-              gap: 20,
+              gap: 16,
             }}
           >
-            <View style={[s.row, { flexWrap: 'wrap', gap: 15 }]}>
-              {desktop ? (
-                <View>
-                  <Text style={s.eyebrow}>YOUR CAMPUS. CONNECTED.</Text>
-                  <Text style={s.heading}>{institution?.name}</Text>
-                </View>
-              ) : (
-                <Brand />
-              )}
-              <Tag
-                text={live ? 'LIVE CONNECTION' : 'RECONNECTING · RECOVERY REFRESH'}
-                tone={live ? 'green' : 'coral'}
-              />
+            <View style={[s.row, { gap: 12, justifyContent: 'flex-start' }]}>
+              {!desktop && <Mark size={40} />}
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={[s.heading, { fontSize: 17 }]} numberOfLines={2}>
+                  {institution?.name || 'NEXT STOP'}
+                </Text>
+                <StatusChip text={connectionText} tone={connectionTone} />
+              </View>
+              <Text style={[s.eyebrow, { alignSelf: 'flex-start', marginTop: 4 }]}>
+                {roleLabels[role].toUpperCase()}
+              </Text>
             </View>
-            <InstitutionChooser
-              institutions={institutionsVisible}
-              selectedId={org}
-              busy={busy}
-              onSelect={(id) => void changeOrg(id)}
-            />
+            {institutionsVisible.length > 1 && (
+              <InstitutionChooser
+                institutions={institutionsVisible}
+                selectedId={org}
+                busy={busy}
+                onSelect={(id) => void changeOrg(id)}
+              />
+            )}
             <Notices
               error={error}
               message={message}
@@ -518,15 +581,6 @@ function Workspace() {
                 />
               </Card>
             )}
-            <Text style={s.caption}>
-              {lastSync
-                ? `Last synchronized ${new Date(lastSync).toLocaleTimeString()}`
-                : 'Connecting to your institution…'}{' '}
-              ·{' '}
-              {live
-                ? 'Changes arrive over an authenticated live connection.'
-                : 'Recovery refresh every 10 seconds while open.'}
-            </Text>
             {!data ? (
               <ActivityIndicator color={C.coral} />
             ) : !data.approved ? (
@@ -563,43 +617,7 @@ function Workspace() {
             ) : tab === 'updates' ? (
               <ServiceUpdates trips={data.trips} />
             ) : (
-              <>
-                <View>
-                  <Text style={s.eyebrow}>{roleLabels[role].toUpperCase()} WORKSPACE</Text>
-                  <Text style={[s.pageTitle, { fontSize: desktop ? 36 : 28 }]}>
-                    {role === 'student'
-                      ? 'Where are we headed?'
-                      : role === 'driver'
-                        ? 'Make every stop count.'
-                        : role === 'parent'
-                          ? 'Close, even from afar.'
-                          : 'Keep your campus moving.'}
-                  </Text>
-                </View>
-                <View style={[s.contentGrid, desktop && { flexDirection: 'row' }]}>
-                  {/* Flex weights size the side-by-side desktop columns; stacked on phones they would stretch height. */}
-                  <View style={[{ gap: 20 }, desktop && { flex: 1.4 }]}>
-                    {shuttleSelector}
-                    <ShuttleMapCard stops={stops} trip={trip} />
-                    {requestList}
-                  </View>
-                  <View style={[{ gap: 20 }, desktop && { flex: 1 }]}>
-                    {roleControls}
-                    <View style={s.darkCard}>
-                      <Icon name="shield-checkmark-outline" size={25} color={C.mint} />
-                      <Text
-                        style={{ color: 'white', fontSize: 21, lineHeight: 29, fontWeight: '700' }}
-                      >
-                        Connected journeys.{'\n'}Thoughtful boundaries.
-                      </Text>
-                      <Text style={{ color: '#AEBBC7', fontSize: 12, lineHeight: 20 }}>
-                        Institution-scoped access. Approved drivers. Student-controlled trip
-                        sharing.
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </>
+              overview
             )}
             <Text style={[s.caption, { textAlign: 'center' }]}>Your ride. In sight.</Text>
           </ScrollView>

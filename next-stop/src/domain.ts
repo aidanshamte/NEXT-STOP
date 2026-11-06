@@ -125,3 +125,82 @@ export function occupancy(requests: RideRequest[], tripId: string) {
     (r) => r.trip_id === tripId && ['accepted', 'approaching', 'boarded'].includes(r.status),
   ).length;
 }
+
+export type ConnectionState = 'connecting' | 'live' | 'reconnecting' | 'offline' | 'stale';
+/** How current the on-screen data is. The recovery refresh runs every 10 s, so data older
+ * than 30 s means neither the live connection nor polling is delivering. */
+export function connectionState(
+  { live, lastSync, syncError }: { live: boolean; lastSync: number | null; syncError: string },
+  now = Date.now(),
+): ConnectionState {
+  if (syncError) return 'offline';
+  if (lastSync == null) return 'connecting';
+  if (now - lastSync > 30000) return 'stale';
+  return live ? 'live' : 'reconnecting';
+}
+/** Short relative time for freshness labels; never in the future. */
+export function ago(timestamp: number, now = Date.now()) {
+  const seconds = Math.max(0, Math.round((now - timestamp) / 1000));
+  if (seconds < 10) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  return new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+export const lifecycle: RequestStatus[] = [
+  'requested',
+  'accepted',
+  'approaching',
+  'boarded',
+  'arrived',
+];
+
+export interface MapStop {
+  name: string;
+  lat: number;
+  lng: number;
+  kind?: 'pickup' | 'dest';
+}
+export interface MapPayload {
+  stops: MapStop[];
+  bus: { lat: number; lng: number; stale: boolean } | null;
+}
+export interface MapHighlight {
+  pickupId?: string;
+  destinationId?: string;
+}
+
+/** Only confirmed, pinned stops are drawn; the vehicle only while its GPS fix is current or
+ * recent (a stale fix is drawn grey), never once service has ended. */
+export function buildMapPayload(
+  allStops: Stop[],
+  trip: Trip | undefined,
+  highlight: MapHighlight = {},
+  now = Date.now(),
+): MapPayload {
+  const state = trip ? locationState(trip, now) : 'offline';
+  return {
+    stops: allStops.filter(isBoardable).map((s) => ({
+      name: s.name,
+      lat: s.lat as number,
+      lng: s.lng as number,
+      ...(s.id === highlight.pickupId
+        ? { kind: 'pickup' as const }
+        : s.id === highlight.destinationId
+          ? { kind: 'dest' as const }
+          : {}),
+    })),
+    bus:
+      trip && trip.lat != null && trip.lng != null && state !== 'offline'
+        ? { lat: trip.lat, lng: trip.lng, stale: state === 'stale' }
+        : null,
+  };
+}
+
+export function mapLabel(payload: MapPayload, tripName = 'the shuttle') {
+  const n = payload.stops.length;
+  if (!payload.bus) return `Map of ${n} stops. Shuttle location is not available.`;
+  return payload.bus.stale
+    ? `Map of ${n} stops. ${tripName}'s last GPS position is out of date.`
+    : `Map of ${n} stops with ${tripName} at its latest GPS position.`;
+}

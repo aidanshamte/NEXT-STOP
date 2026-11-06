@@ -32,3 +32,9 @@ export const statusLabels: Record<RequestStatus, string> = {
   arrived: 'Arrived',
   cancelled: 'Cancelled',
 };
+
+/** Identifies one in-flight write, so only the pressed control shows progress. */
+export const actionKey = (path: string, body: object = {}) => {
+  const b = body as { requestId?: string; tripId?: string };
+  return `${path}#${b.requestId ?? b.tripId ?? ''}`;
+};

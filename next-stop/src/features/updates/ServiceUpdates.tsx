@@ -1,23 +1,27 @@
 import React from 'react';
 import { Text, View } from 'react-native';
-import { Card, Tag, s } from '../../components/UI';
+import { C } from '../../components/Brand';
+import { Card, Icon, s } from '../../components/UI';
 import type { Trip } from '../../domain';
+import ServiceNotice from './ServiceNotice';
 
 export default function ServiceUpdates({ trips }: { trips: Trip[] }) {
   const disrupted = trips.filter((t) => t.issue || t.delay_minutes);
   return (
-    <Card>
+    <View style={{ gap: 14 }}>
       <Text style={s.title}>Service updates</Text>
       {disrupted.map((t) => (
-        <View style={s.request} key={t.id}>
-          <Tag text={`DELAY · ${t.delay_minutes} MIN`} tone="coral" />
-          <Text style={s.heading}>{t.name}</Text>
-          <Text style={s.body}>
-            {t.issue || 'Wait at your approved stop and follow dispatch guidance.'}
-          </Text>
-        </View>
+        <ServiceNotice key={t.id} trip={t} />
       ))}
-      {!disrupted.length && <Text style={s.body}>No reported disruptions.</Text>}
-    </Card>
+      {!disrupted.length && (
+        <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
+          <Icon name="checkmark-circle-outline" size={30} color={C.green} />
+          <Text style={s.heading}>No reported disruptions</Text>
+          <Text style={[s.caption, { textAlign: 'center' }]}>
+            Drivers and dispatch publish delays here. This list updates on its own.
+          </Text>
+        </Card>
+      )}
+    </View>
   );
 }

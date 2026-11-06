@@ -77,6 +77,7 @@ To re-import after the sign changes: edit `server/imports/fairfield-university-s
 ## Design system
 
 - [x] Palette (midnight navy, coral, warm white, mint), type and components in code; documented in BRAND.md
+- [x] Rider, driver, parent and dispatch screens restyled from the owner's Stitch reference (2026-11-06); see the layout section of BRAND.md
 - [ ] Figma file: not created. No Figma connection was available in this session. If one is created, link it in BRAND.md
 - [ ] Accessibility audit on devices (screen readers, dynamic type, contrast checks)
 
