@@ -1,0 +1,85 @@
+# Deploys the NEXT STOP API to the Azure VM. Manual only: run it from the Actions tab.
+# Setup (one time): docs/DEPLOY-AZURE.md, "GitHub deployment".
+# Rollback: run again with release_id set to an earlier release (blobs are kept 120 days).
+name: Deploy API (Azure)
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: 'Redeploy an existing release id (12-char commit) instead of packaging this commit'
+        required: false
+        default: ''
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: next-stop
+    env:
+      RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+      VM: ${{ vars.AZURE_VM_NAME }}
+      STORAGE: ${{ vars.AZURE_STORAGE_ACCOUNT }}
+      API_URL: ${{ vars.API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configuration present
+        run: |
+          for v in RG VM STORAGE API_URL; do
+            [ -n "${!v}" ] || { echo "Missing repository variable for $v (see docs/DEPLOY-AZURE.md)"; exit 1; }
+          done
+      - uses: actions/setup-node@v4
+        if: inputs.release_id == ''
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: next-stop/package-lock.json
+      - name: Test before deploying
+        if: inputs.release_id == ''
+        run: npm ci && npm test
+      - name: Choose release id
+        id: rel
+        run: |
+          R="${{ inputs.release_id }}"
+          [ -n "$R" ] || R="${GITHUB_SHA::12}"
+          [[ "$R" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || { echo "Invalid release id"; exit 1; }
+          echo "id=$R" >> "$GITHUB_OUTPUT"
+      - name: Package
+        if: inputs.release_id == ''
+        run: bash deploy/package-release.sh "${{ steps.rel.outputs.id }}" build/release
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Upload release package
+        if: inputs.release_id == ''
+        run: |
+          R="${{ steps.rel.outputs.id }}"
+          for f in "$R.tgz" "$R.tgz.sha256"; do
+            az storage blob upload --auth-mode login --account-name "$STORAGE" \
+              --container-name releases --name "$f" --file "build/release/$f" --overwrite --only-show-errors
+          done
+      - name: Install on VM (automatic rollback if unhealthy)
+        run: |
+          sed "s/__RELEASE__/${{ steps.rel.outputs.id }}/" deploy/run-command.sh > "$RUNNER_TEMP/run.sh"
+          az vm run-command invoke -g "$RG" -n "$VM" --command-id RunShellScript \
+            --scripts @"$RUNNER_TEMP/run.sh" --query 'value[].message' -o tsv
+      - name: Verify the public endpoint serves this release
+        run: |
+          R="${{ steps.rel.outputs.id }}"
+          for i in $(seq 1 30); do
+            body="$(curl -sS --max-time 10 "$API_URL/health" || true)"
+            if echo "$body" | jq -e --arg r "$R" '.ok == true and .release == $r' > /dev/null 2>&1; then
+              echo "Live: $body"; exit 0
+            fi
+            sleep 4
+          done
+          echo "Public health check did not report release $R. Last response: $body"
+          exit 1

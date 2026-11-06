@@ -27,6 +27,8 @@ export function createApp({
   // Receives one record per request: no IPs, tokens, bodies, query strings or coordinates.
   log = null,
   sessionRateLimit = 240,
+  // Identifies the deployed build in /health so a deploy can be verified from outside.
+  release = process.env.RELEASE_ID || 'development',
   clock = Date.now,
 } = {}) {
   const db = openDatabase(dbPath);
@@ -128,6 +130,7 @@ export function createApp({
           service: 'next-stop',
           protocol: 3,
           schema: SCHEMA_VERSION,
+          release,
           uptimeSeconds: Math.round((clock() - startedAt) / 1000),
         });
       }

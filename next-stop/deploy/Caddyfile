@@ -1,0 +1,25 @@
+# NEXT STOP public HTTPS/WSS entry point.
+# Caddy obtains and renews the TLS certificate automatically for NEXT_STOP_DOMAIN
+# (set in /etc/next-stop/deploy.env, loaded by the caddy service drop-in).
+# No access log is configured on purpose: access logs would record client IPs and
+# query strings. The API writes its own privacy-safe request log.
+{
+	admin localhost:2019
+}
+
+{$NEXT_STOP_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+	request_body {
+		max_size 64KB
+	}
+	# Caddy ignores client-supplied X-Forwarded-For (no trusted_proxies set) and
+	# sends the address it observed, which the API trusts via TRUST_PROXY=1.
+	# WebSocket upgrades on /realtime are proxied automatically.
+	reverse_proxy 127.0.0.1:4000
+}

@@ -1,13 +1,20 @@
 {
   "name": "next-stop-api",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
+  "description": "NEXT STOP API and realtime server. Deployed on its own; only these dependencies are installed on the server.",
   "engines": {
     "node": ">=24"
   },
+  "dependencies": {
+    "google-auth-library": "11.3.3",
+    "nodemailer": "10.3.1",
+    "ws": "8.22.1"
+  },
   "scripts": {
     "start": "node index.mjs",
-    "test": "node --test ../tests/api.test.mjs",
-    "setup": "node setup.mjs"
+    "setup": "node setup.mjs",
+    "backup": "node backup.mjs backup"
   }
 }

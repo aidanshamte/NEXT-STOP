@@ -1,5 +1,24 @@
 import type { ExpoConfig, ConfigContext } from 'expo/config';
+// Installed builds that leave a developer's machine must reach the hosted HTTPS API.
+// Fail the build instead of shipping an app that cannot connect.
+export function requireHostedApi(profile: string | undefined, apiUrl: string | undefined) {
+  if (profile !== 'preview' && profile !== 'production') return;
+  const value = (apiUrl || '').trim();
+  let ok = false;
+  try {
+    const url = new URL(value);
+    ok = url.protocol === 'https:' && (url.pathname === '/' || url.pathname === '') && !url.search;
+  } catch {
+    ok = false;
+  }
+  if (!ok)
+    throw new Error(
+      `The "${profile}" build needs EXPO_PUBLIC_API_URL set to the hosted HTTPS API origin ` +
+        '(for example https://nextstop-api.eastus.cloudapp.azure.com). See docs/DEPLOY-AZURE.md.',
+    );
+}
 export default ({ config }: ConfigContext): ExpoConfig => {
+  requireHostedApi(process.env.EAS_BUILD_PROFILE, process.env.EXPO_PUBLIC_API_URL);
   const allowLocalHttp = process.env.ALLOW_LOCAL_HTTP === '1';
   const iosGoogleId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
   const googleScheme =
@@ -22,10 +41,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.nextstop.app',
+      // HTTPS/TLS only: exempt from export-compliance encryption documentation.
+      config: { usesNonExemptEncryption: false },
       infoPlist: {
-        NSLocalNetworkUsageDescription:
-          'Connect to your institution’s NEXT STOP server on the local Wi-Fi network.',
-        ...(allowLocalHttp ? { NSAppTransportSecurity: { NSAllowsArbitraryLoads: true } } : {}),
+        // Local-network access is requested only by internal local-HTTP test builds.
+        ...(allowLocalHttp
+          ? {
+              NSLocalNetworkUsageDescription:
+                'Connect to your team’s NEXT STOP test server on the local Wi-Fi network.',
+              NSAppTransportSecurity: { NSAllowsArbitraryLoads: true },
+            }
+          : {}),
       },
     },
     android: {

@@ -1,0 +1,18 @@
+[Unit]
+Description=NEXT STOP verified database backup (local + Azure Blob)
+RequiresMountsFor=/var/lib/next-stop
+
+[Service]
+Type=oneshot
+User=nextstop
+Group=nextstop
+WorkingDirectory=/opt/next-stop/current
+# BACKUP_BLOB_CONTAINER_URL comes from deploy.env (not a secret; access uses the VM managed identity).
+EnvironmentFile=/etc/next-stop/deploy.env
+Environment=DATABASE_PATH=/var/lib/next-stop/next-stop.db
+ExecStart=/usr/bin/node server/backup.mjs backup --out /var/lib/next-stop/backups/daily --keep 14 --upload
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/next-stop

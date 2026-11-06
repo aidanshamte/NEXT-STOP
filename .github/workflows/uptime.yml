@@ -1,0 +1,25 @@
+# External uptime check of the public API. A failing scheduled run makes GitHub send
+# its standard workflow-failure notification. Does nothing until API_URL is set.
+name: API uptime
+on:
+  schedule:
+    # Hourly: about 720 Actions minutes/month on a private repo (each run bills at least 1 minute).
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  health:
+    if: vars.API_URL != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Public /health over HTTPS
+        run: |
+          for attempt in 1 2 3; do
+            if curl -sSf --max-time 10 "${{ vars.API_URL }}/health" | jq -e '.ok == true' > /dev/null; then
+              echo "Healthy"; exit 0
+            fi
+            sleep 20
+          done
+          echo "NEXT STOP API is not healthy at ${{ vars.API_URL }}"
+          exit 1

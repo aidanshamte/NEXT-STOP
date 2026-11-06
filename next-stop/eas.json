@@ -23,11 +23,16 @@
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
+      "env": {
+        "ALLOW_LOCAL_HTTP": "0"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
+      "environment": "production",
       "autoIncrement": true,
       "env": {
         "ALLOW_LOCAL_HTTP": "0"

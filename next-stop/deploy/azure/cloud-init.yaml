@@ -1,0 +1,74 @@
+#cloud-config
+# First-boot setup for the NEXT STOP API VM (Ubuntu 24.04 LTS).
+# Placeholders __DOMAIN__, __RELEASE_URL__ and __BACKUP_URL__ are filled by main.bicep.
+# No secrets are placed here: Azure keeps customData readable to subscription readers.
+package_update: true
+package_upgrade: true
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - debian-keyring
+  - debian-archive-keyring
+  - apt-transport-https
+  - unattended-upgrades
+
+write_files:
+  - path: /etc/next-stop/deploy.env
+    permissions: '0644'
+    content: |
+      NEXT_STOP_DOMAIN=__DOMAIN__
+      RELEASE_CONTAINER_URL=__RELEASE_URL__
+      BACKUP_BLOB_CONTAINER_URL=__BACKUP_URL__
+  - path: /etc/systemd/system/caddy.service.d/next-stop.conf
+    permissions: '0644'
+    content: |
+      [Service]
+      EnvironmentFile=/etc/next-stop/deploy.env
+  - path: /etc/apt/apt.conf.d/52next-stop-unattended
+    permissions: '0644'
+    content: |
+      // Install security updates daily; reboot at 08:30 UTC only when required.
+      Unattended-Upgrade::Automatic-Reboot "true";
+      Unattended-Upgrade::Automatic-Reboot-Time "08:30";
+  - path: /opt/next-stop/bin/prepare-data-disk.sh
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      # Formats the attached data disk only if it has no filesystem, so an existing
+      # NEXT STOP database on a re-attached disk is never erased.
+      set -euo pipefail
+      DISK=/dev/disk/azure/scsi1/lun0
+      for _ in $(seq 1 60); do [[ -e "$DISK" ]] && break; sleep 2; done
+      [[ -e "$DISK" ]] || { echo "Data disk not found at $DISK" >&2; exit 1; }
+      if ! blkid "$DISK" >/dev/null 2>&1; then
+        mkfs.ext4 -q -L nextstopdata "$DISK"
+      fi
+      mkdir -p /var/lib/next-stop
+      grep -q 'LABEL=nextstopdata' /etc/fstab ||
+        echo 'LABEL=nextstopdata /var/lib/next-stop ext4 defaults,nofail,discard 0 2' >>/etc/fstab
+      mountpoint -q /var/lib/next-stop || mount /var/lib/next-stop
+
+runcmd:
+  - /opt/next-stop/bin/prepare-data-disk.sh
+  # Node.js 24 LTS from NodeSource (documented installer).
+  - curl -fsSL https://deb.nodesource.com/setup_24.x -o /tmp/nodesource_setup.sh
+  - bash /tmp/nodesource_setup.sh
+  - apt-get install -y nodejs
+  # Caddy from the official Caddy apt repository.
+  - curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  - curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' -o /etc/apt/sources.list.d/caddy-stable.list
+  - apt-get update
+  - apt-get install -y caddy
+  # Service account and directories.
+  - id nextstop >/dev/null 2>&1 || useradd --system --home-dir /var/lib/next-stop --shell /usr/sbin/nologin nextstop
+  - mkdir -p /opt/next-stop/releases /var/lib/next-stop/backups
+  - chown -R nextstop:nextstop /var/lib/next-stop
+  - chmod 750 /var/lib/next-stop
+  - chown root:nextstop /etc/next-stop
+  - chmod 750 /etc/next-stop
+  # Secret settings are added later by the operator (see docs/DEPLOY-AZURE.md).
+  - test -f /etc/next-stop/next-stop.env || install -m 640 -o root -g nextstop /dev/null /etc/next-stop/next-stop.env
+  - systemctl daemon-reload
+  - systemctl enable caddy
+  - echo "NEXT STOP bootstrap complete" > /var/log/next-stop-bootstrap.done

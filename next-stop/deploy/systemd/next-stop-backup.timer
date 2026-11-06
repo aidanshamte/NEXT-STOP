@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily NEXT STOP database backup
+
+[Timer]
+OnCalendar=*-*-* 07:15:00 UTC
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
