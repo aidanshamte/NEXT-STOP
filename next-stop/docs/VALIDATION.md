@@ -40,6 +40,20 @@ Tests use synthetic identities, an injected mail-delivery function and an inject
 - **Restore drill on the VM:** with the documented command, a verified backup was restored, the prior database was kept as `next-stop.db.pre-restore-…`, and the service returned healthy. This drill found and fixed a real bug: the CLI silently did nothing when run through the release symlink. A regression test was added.
 - **Email provider wiring:** on the VM, the managed identity obtained a token and ACS accepted and completed a send to a reserved test address (`example.com`). Delivery to a real inbox: see section 3.
 
+## 2c. Passed: web testing version at https://nextstop.software (2026-11-06)
+
+`node scripts/verify-web.mjs`, run from outside Azure: **17/17 checks passed**.
+
+- DNS: the apex and `www` resolve to the VM's static IP 52.159.95.124 (Name.com nameservers unchanged).
+- Let's Encrypt certificates for `nextstop.software`, `www.nextstop.software` and the Azure hostname (renewed automatically by Caddy).
+- `www` redirects with 301 to the apex, keeping the path and query; HTTP redirects to HTTPS.
+- The site returns the app with CSP and HSTS; deep links return the app; hashed bundles are cached as immutable.
+- API paths on the web origin return JSON (including unknown API paths). Sign-in answers the site origin with 401 for bad credentials; other origins get 403.
+- `wss://nextstop.software/realtime` rejects an invalid token with 4001, and a foreign origin is refused. The mobile hostname's `/health` and WSS still work.
+- Headless Chrome with phone emulation (375 px): the page renders with no console errors, CSP violations or failed requests. A deep link and an old `www` link open the app (a not-found redirect was added after this check first showed Expo Router's "Unmatched Route" page).
+
+**Not verified by me:** signing in on the website with a real account, live updates between two signed-in sessions, and reconnection after a network drop in the browser (these need the owner's account; the reconnect logic has automated server-side coverage only). Google sign-in on the web needs the Web OAuth client with origin `https://nextstop.software`.
+
 ## 3. Not yet tested: needs the owner's accounts, money or devices
 
 - **Automatic rollback on a failing release** has not been triggered on the VM (only healthy releases were deployed). Budget/alert emails have not fired.
