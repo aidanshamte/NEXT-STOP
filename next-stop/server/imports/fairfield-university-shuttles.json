@@ -1,0 +1,110 @@
+{
+  "institutionName": "Fairfield University",
+  "source": "Fairfield University 'Shuttle Bus Stops' sign (photographed 2026-11-06). Names cross-checked against https://www.fairfield.edu/student-life/campus-services/transportation-and-parking, which lists no stop coordinates. Every stop is imported as a draft without a pin; an administrator confirms each boarding point.",
+  "stops": {
+    "barone-traffic-circle": { "name": "Barone Campus Center Traffic Circle" },
+    "walsh-lot-crosswalk": { "name": "Walsh Lot Crosswalk" },
+    "dolan-campus-circle": { "name": "Dolan Campus Circle" },
+    "block-17-walkway": { "name": "Block 17 Walkway" },
+    "block-13-walkway": { "name": "Block 13 Walkway" },
+    "library-meditz-crosswalk": {
+      "name": "Library & Meditz Crosswalk",
+      "note": "fairfield.edu: 'Library and Meditz crosswalk'."
+    },
+    "quick-center-crosswalk": { "name": "Quick Center Crosswalk" },
+    "dsb-lower-lot-crosswalk": {
+      "name": "DSB Lower Lot Crosswalk",
+      "note": "DSB: Dolan School of Business."
+    },
+    "chapel-crosswalk": { "name": "Chapel Crosswalk" },
+    "crosswalk-behind-canisius": { "name": "Crosswalk behind Canisius" },
+    "jogues-health-center": { "name": "Jogues & Health Center" },
+    "campion-crosswalk": { "name": "Campion Crosswalk" },
+    "fairfield-train-station": {
+      "name": "Fairfield Train Station (top of overpass)",
+      "note": "fairfield.edu: 'Fairfield Train Station overpass'."
+    },
+    "140-mill-plain-road": {
+      "name": "140 Mill Plain Road",
+      "note": "On the sign; not named on fairfield.edu."
+    },
+    "fairfield-green": {
+      "name": "Fairfield Green (near Bookstore)",
+      "note": "fairfield.edu: 'Town Green (includes the Fairfield University Bookstore and Brick Walk)'."
+    },
+    "grasmere-post-rd": {
+      "name": "Grasmere & Post Rd",
+      "note": "fairfield.edu: 'Grasmere Avenue and Post Road'."
+    },
+    "metro-train-alto": {
+      "name": "Metro Train (Alto Parking Garage Side)",
+      "note": "fairfield.edu: 'Metro Train Station, Alto parking garage side'."
+    },
+    "whole-foods": { "name": "Whole Foods" },
+    "stop-and-shop": { "name": "Stop & Shop" },
+    "marshalls-cvs": {
+      "name": "Marshalls/CVS",
+      "note": "Sign prints 'Marshall/CVS'; fairfield.edu names the store 'Marshalls'."
+    },
+    "bridgeport-train-station": { "name": "Bridgeport Train Station" },
+    "bellarmine-campus": { "name": "Bellarmine Campus" },
+    "1720-post-road": {
+      "name": "1720 Post Road",
+      "note": "Sign prints '1720 Post Rd'."
+    }
+  },
+  "routes": [
+    {
+      "key": "campus-shuttle",
+      "name": "Campus Shuttle",
+      "color": "#C8202F",
+      "stops": [
+        { "stop": "barone-traffic-circle" },
+        { "stop": "walsh-lot-crosswalk" },
+        { "stop": "dolan-campus-circle" },
+        { "stop": "block-17-walkway" },
+        { "stop": "block-13-walkway" },
+        { "stop": "barone-traffic-circle" },
+        { "stop": "library-meditz-crosswalk" },
+        { "stop": "quick-center-crosswalk" },
+        { "stop": "dsb-lower-lot-crosswalk" },
+        { "stop": "chapel-crosswalk", "onDemand": true },
+        { "stop": "crosswalk-behind-canisius", "onDemand": true },
+        { "stop": "jogues-health-center", "onDemand": true },
+        { "stop": "campion-crosswalk", "onDemand": true }
+      ]
+    },
+    {
+      "key": "town-shuttle",
+      "name": "Town Shuttle",
+      "color": "#2E3A8C",
+      "stops": [
+        { "stop": "barone-traffic-circle" },
+        { "stop": "fairfield-train-station" },
+        { "stop": "140-mill-plain-road" },
+        { "stop": "fairfield-green" },
+        { "stop": "grasmere-post-rd" },
+        { "stop": "metro-train-alto" },
+        { "stop": "whole-foods" },
+        { "stop": "stop-and-shop" },
+        { "stop": "marshalls-cvs" }
+      ]
+    },
+    {
+      "key": "bellarmine-bus-shuttle",
+      "name": "Bellarmine Bus Shuttle",
+      "color": "#4E6B2E",
+      "stops": [
+        { "stop": "barone-traffic-circle" },
+        { "stop": "bridgeport-train-station" },
+        { "stop": "bellarmine-campus" }
+      ]
+    },
+    {
+      "key": "1720-post-road-shuttle",
+      "name": "1720 Post Road Shuttle",
+      "color": "#1F5FA8",
+      "stops": [{ "stop": "barone-traffic-circle" }, { "stop": "1720-post-road" }]
+    }
+  ]
+}

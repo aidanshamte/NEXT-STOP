@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import type { WebViewMessageEvent, WebViewProps } from 'react-native-webview';
 
-import { locationState, type Stop, type Trip } from '../domain';
+import { isBoardable, locationState, type Stop, type Trip } from '../domain';
 import { C } from './Brand';
 
 // The library's class typings resolve to `never` under React 19.3 types; this restates them.
@@ -50,7 +50,9 @@ window.update=function(d){
 };
 </script></body></html>`;
 
-export default function LiveMap({ stops, trip }: { stops: Stop[]; trip?: Trip }) {
+export default function LiveMap({ stops: allStops, trip }: { stops: Stop[]; trip?: Trip }) {
+  // Only confirmed, pinned stops are drawn; drafts have no verified location.
+  const stops = allStops.filter(isBoardable) as (Stop & { lat: number; lng: number })[];
   const view = useRef<MapHandle>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);

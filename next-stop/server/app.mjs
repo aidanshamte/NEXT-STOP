@@ -315,13 +315,30 @@ export function createApp({
             requests: [],
             shares: [],
             members: [],
+            routes: [],
+            routeStops: [],
           });
+        // Draft stops (no confirmed boarding point) are visible to administrators only.
         const stops = db
-          .prepare('SELECT * FROM stops WHERE institution_id=? ORDER BY position')
+          .prepare(
+            `SELECT id,institution_id,name,lat,lng,position,status,note FROM stops WHERE institution_id=? ${member.role === 'admin' ? '' : "AND status='confirmed'"} ORDER BY position`,
+          )
           .all(org);
+        const routes = db
+          .prepare(
+            'SELECT id,name,color,position FROM routes WHERE institution_id=? ORDER BY position',
+          )
+          .all(org);
+        const visibleStop = new Set(stops.map((stop) => stop.id));
+        const routeStops = db
+          .prepare(
+            'SELECT rs.route_id,rs.position,rs.stop_id,rs.on_demand FROM route_stops rs JOIN routes r ON r.id=rs.route_id WHERE r.institution_id=? ORDER BY rs.route_id,rs.position',
+          )
+          .all(org)
+          .filter((entry) => visibleStop.has(entry.stop_id));
         let trips = db
           .prepare(
-            'SELECT id,institution_id,driver_id,name,capacity,active,lat,lng,accuracy,updated_at,delay_minutes,issue FROM trips WHERE institution_id=?',
+            'SELECT id,institution_id,driver_id,route_id,name,capacity,active,lat,lng,accuracy,updated_at,delay_minutes,issue FROM trips WHERE institution_id=?',
           )
           .all(org);
         let requests;
@@ -379,6 +396,8 @@ export function createApp({
           requests,
           shares,
           members,
+          routes,
+          routeStops,
         });
       }
       if (!member.approved) fail(403, 'Membership is awaiting institution approval.');
@@ -398,8 +417,50 @@ export function createApp({
         const position = db
           .prepare('SELECT count(*) AS n FROM stops WHERE institution_id=?')
           .get(org).n;
-        db.prepare('INSERT INTO stops VALUES (?,?,?,?,?,?)').run(id, org, name, lat, lng, position);
+        db.prepare(
+          "INSERT INTO stops(id,institution_id,name,lat,lng,position,status) VALUES (?,?,?,?,?,?,'confirmed')",
+        ).run(id, org, name, lat, lng, position);
         return send(201, { id });
+      }
+      if (path === '/stops/pin') {
+        // An administrator sets (or corrects) a stop's boarding point; this confirms it.
+        if (member.role !== 'admin') fail(403, 'Admin access required.');
+        const stop = db
+          .prepare('SELECT id FROM stops WHERE id=? AND institution_id=?')
+          .get(text('stopId'), org);
+        if (!stop) fail(404, 'Stop not found.');
+        const { lat, lng } = body;
+        if (
+          !Number.isFinite(lat) ||
+          !Number.isFinite(lng) ||
+          Math.abs(lat) > 90 ||
+          Math.abs(lng) > 180 ||
+          (lat === 0 && lng === 0)
+        )
+          fail(400, 'Enter valid latitude and longitude.');
+        db.prepare("UPDATE stops SET lat=?,lng=?,status='confirmed' WHERE id=?").run(
+          lat,
+          lng,
+          stop.id,
+        );
+        return send(200, { ok: true });
+      }
+      if (path === '/trips/route') {
+        if (member.role !== 'admin') fail(403, 'Admin access required.');
+        const trip = db
+          .prepare('SELECT id FROM trips WHERE id=? AND institution_id=?')
+          .get(text('tripId'), org);
+        if (!trip) fail(404, 'Trip not found.');
+        let routeId = null;
+        if (body.routeId !== null) {
+          routeId = text('routeId');
+          if (
+            !db.prepare('SELECT id FROM routes WHERE id=? AND institution_id=?').get(routeId, org)
+          )
+            fail(400, 'Choose a route in this institution.');
+        }
+        db.prepare('UPDATE trips SET route_id=? WHERE id=?').run(routeId, trip.id);
+        return send(200, { ok: true });
       }
       if (path === '/trips') {
         if (member.role !== 'admin') fail(403, 'Admin access required.');
@@ -411,10 +472,16 @@ export function createApp({
           fail(400, 'Choose an approved driver in this institution.');
         if (!Number.isInteger(capacity) || capacity < 1 || capacity > 100)
           fail(400, 'Capacity must be 1 to 100.');
+        const routeId = typeof body.routeId === 'string' && body.routeId ? body.routeId : null;
+        if (
+          routeId &&
+          !db.prepare('SELECT id FROM routes WHERE id=? AND institution_id=?').get(routeId, org)
+        )
+          fail(400, 'Choose a route in this institution.');
         const id = randomUUID();
         db.prepare(
-          'INSERT INTO trips(id,institution_id,driver_id,name,capacity,active) VALUES (?,?,?,?,?,0)',
-        ).run(id, org, driverId, name, capacity);
+          'INSERT INTO trips(id,institution_id,driver_id,route_id,name,capacity,active) VALUES (?,?,?,?,?,?,0)',
+        ).run(id, org, driverId, routeId, name, capacity);
         return send(201, { id });
       }
       if (path === '/requests') {
@@ -425,12 +492,27 @@ export function createApp({
         if (!trip) fail(409, 'This trip is not in service.');
         const stopId = text('stopId'),
           destinationId = text('destinationId');
-        const stops = db.prepare('SELECT id FROM stops WHERE institution_id=?').all(org);
+        // Pickup only at confirmed boarding points; draft stops have no verified location.
+        const stops = db
+          .prepare(
+            "SELECT id FROM stops WHERE institution_id=? AND status='confirmed' AND lat IS NOT NULL AND lng IS NOT NULL",
+          )
+          .all(org);
         if (
           stopId === destinationId ||
           ![stopId, destinationId].every((id) => stops.some((s) => s.id === id))
         )
-          fail(400, 'Choose different pickup and destination stops in your institution.');
+          fail(400, 'Choose different confirmed pickup and destination stops in your institution.');
+        if (trip.route_id) {
+          const onRoute = new Set(
+            db
+              .prepare('SELECT stop_id FROM route_stops WHERE route_id=?')
+              .all(trip.route_id)
+              .map((r) => r.stop_id),
+          );
+          if (!onRoute.has(stopId) || !onRoute.has(destinationId))
+            fail(400, 'Choose stops served by this shuttle’s route.');
+        }
         const existing = db
           .prepare(
             `SELECT id FROM requests WHERE student_id=? AND institution_id=? AND status IN (${OPEN_SQL})`,

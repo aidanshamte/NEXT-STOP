@@ -22,6 +22,7 @@ import AuthScreen from './src/features/auth/AuthScreen';
 import JoinInstitution from './src/features/auth/JoinInstitution';
 import AccountPanel from './src/features/account/AccountPanel';
 import DispatchPanel from './src/features/dispatch/DispatchPanel';
+import RoutesPanel from './src/features/dispatch/RoutesPanel';
 import type { DispatchDraft } from './src/features/dispatch/DispatchPanel';
 import DriverControls from './src/features/driver/DriverControls';
 import RequestList from './src/features/journeys/RequestList';
@@ -384,6 +385,8 @@ function Workspace() {
     role === 'student' ? (
       <StudentControls
         stops={stops}
+        routes={data?.routes || []}
+        routeStops={data?.routeStops || []}
         trips={trips}
         trip={trip}
         request={request}
@@ -412,18 +415,29 @@ function Workspace() {
         mutate={mutate}
       />
     ) : role === 'admin' ? (
-      <DispatchPanel
-        members={data?.members || []}
-        trips={trips}
-        selfId={me.user.id}
-        stopCount={stops.length}
-        tripCount={trips.length}
-        draft={dispatchDraft}
-        setDraft={updateDispatchDraft}
-        busy={busy}
-        run={run}
-        mutate={mutate}
-      />
+      <>
+        <DispatchPanel
+          members={data?.members || []}
+          trips={trips}
+          selfId={me.user.id}
+          stopCount={stops.length}
+          tripCount={trips.length}
+          draft={dispatchDraft}
+          setDraft={updateDispatchDraft}
+          busy={busy}
+          run={run}
+          mutate={mutate}
+        />
+        <RoutesPanel
+          routes={data?.routes || []}
+          routeStops={data?.routeStops || []}
+          stops={stops}
+          trips={trips}
+          busy={busy}
+          run={run}
+          mutate={mutate}
+        />
+      </>
     ) : (
       <Card>
         <Icon name="heart-outline" size={30} color={C.coral} />

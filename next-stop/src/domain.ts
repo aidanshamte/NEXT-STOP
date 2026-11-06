@@ -11,14 +11,31 @@ export interface Institution {
 export interface Stop {
   id: string;
   name: string;
-  lat: number;
-  lng: number;
+  /** Null until an administrator confirms the boarding point. */
+  lat: number | null;
+  lng: number | null;
   position: number;
+  /** Draft stops are imported names awaiting a confirmed pin; no pickup there yet. */
+  status?: 'draft' | 'confirmed';
+  note?: string;
+}
+export interface Route {
+  id: string;
+  name: string;
+  color: string;
+  position: number;
+}
+export interface RouteStop {
+  route_id: string;
+  position: number;
+  stop_id: string;
+  on_demand: number;
 }
 export interface Trip {
   id: string;
   institution_id: string;
   driver_id: string | null;
+  route_id?: string | null;
   name: string;
   capacity: number;
   active: number;
@@ -65,6 +82,21 @@ export interface Snapshot {
   requests: RideRequest[];
   shares: Share[];
   members: Member[];
+  routes?: Route[];
+  routeStops?: RouteStop[];
+}
+/** A stop riders can use: confirmed and pinned. */
+export const isBoardable = (stop: Stop) =>
+  stop.status !== 'draft' && stop.lat != null && stop.lng != null;
+/** A route's stops in printed order (a stop may appear twice, e.g. a loop's start and middle). */
+export function routeSequence(routeId: string, routeStops: RouteStop[], stops: Stop[]) {
+  return routeStops
+    .filter((entry) => entry.route_id === routeId)
+    .sort((a, b) => a.position - b.position)
+    .flatMap((entry) => {
+      const stop = stops.find((s) => s.id === entry.stop_id);
+      return stop ? [{ stop, onDemand: !!entry.on_demand, position: entry.position }] : [];
+    });
 }
 export const isOpen = (status: RequestStatus) =>
   ['requested', 'accepted', 'approaching', 'boarded'].includes(status);

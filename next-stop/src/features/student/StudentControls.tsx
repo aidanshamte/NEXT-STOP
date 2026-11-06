@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { C } from '../../components/Brand';
 import { Button, Card, Icon, Tag, s } from '../../components/UI';
-import type { RideRequest, Stop, Trip } from '../../domain';
+import { isBoardable, routeSequence } from '../../domain';
+import type { RideRequest, Route, RouteStop, Stop, Trip } from '../../domain';
 import { statusLabels } from '../workspace/types';
 import type { Mutate } from '../workspace/types';
 
@@ -10,6 +11,8 @@ import type { Mutate } from '../workspace/types';
  * and is cleared on sign-in and institution switches. */
 export default function StudentControls({
   stops,
+  routes = [],
+  routeStops = [],
   trips,
   trip,
   request,
@@ -24,6 +27,8 @@ export default function StudentControls({
   onViewJourney,
 }: {
   stops: Stop[];
+  routes?: Route[];
+  routeStops?: RouteStop[];
   trips: Trip[];
   trip?: Trip;
   request?: RideRequest;
@@ -37,19 +42,37 @@ export default function StudentControls({
   mutate: Mutate;
   onViewJourney: () => void;
 }) {
+  // A shuttle on a route offers that route's confirmed stops in printed order (each stop once);
+  // otherwise every confirmed stop of the institution.
+  const route = routes.find((r) => r.id === trip?.route_id);
+  const options = (
+    route
+      ? routeSequence(route.id, routeStops, stops)
+      : stops.map((stop) => ({ stop, onDemand: false, position: stop.position }))
+  ).filter(
+    (entry, index, list) =>
+      isBoardable(entry.stop) && list.findIndex((e) => e.stop.id === entry.stop.id) === index,
+  );
   return (
     <Card>
       <Text style={s.title}>Where are we headed?</Text>
       <Text style={s.label}>SHUTTLE</Text>
       {shuttleSelector}
+      {route && <Text style={s.caption}>Serves the {route.name}</Text>}
       {!trips.length && (
         <Text style={s.body}>Your institution has not assigned any shuttles yet.</Text>
       )}
       {!request ? (
         <>
           <Text style={s.label}>PICKUP STOP</Text>
+          {!options.length && (
+            <Text style={s.body}>
+              No pickup stops are confirmed for this shuttle yet. Your institution is setting them
+              up.
+            </Text>
+          )}
           <View style={s.stopOptions}>
-            {stops.map((stop) => (
+            {options.map(({ stop, onDemand }) => (
               <Pressable
                 key={stop.id}
                 onPress={() => {
@@ -66,13 +89,17 @@ export default function StudentControls({
                   color={pickup === stop.id ? C.coral : C.muted}
                   size={18}
                 />
-                <Text style={s.body}>{stop.name}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.body}>{stop.name}</Text>
+                  {onDemand && <Text style={s.caption}>On-demand stop</Text>}
+                </View>
               </Pressable>
             ))}
           </View>
           <Text style={s.label}>DESTINATION</Text>
           <View style={s.pills}>
-            {stops
+            {options
+              .map((entry) => entry.stop)
               .filter((t) => t.id !== pickup)
               .map((stop) => (
                 <Pressable

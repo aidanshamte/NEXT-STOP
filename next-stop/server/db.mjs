@@ -54,18 +54,32 @@ const migrations = [
     CREATE INDEX IF NOT EXISTS push_tokens_user ON push_tokens(user_id);
     CREATE TABLE IF NOT EXISTS push_tickets(id TEXT PRIMARY KEY,token TEXT NOT NULL,created_at INTEGER NOT NULL);`);
   },
+  // 4: routes (services) with ordered stops, draft stops awaiting a confirmed boarding
+  // point, and stable import keys so institution data imports can be re-run safely.
+  // Existing stops were entered by administrators with real coordinates: confirmed.
+  (db) => {
+    db.exec(`ALTER TABLE stops ADD COLUMN status TEXT NOT NULL DEFAULT 'confirmed' CHECK(status IN ('draft','confirmed'));
+    ALTER TABLE stops ADD COLUMN import_key TEXT;
+    ALTER TABLE stops ADD COLUMN note TEXT NOT NULL DEFAULT '';
+    CREATE UNIQUE INDEX stops_import_key ON stops(institution_id,import_key) WHERE import_key IS NOT NULL;
+    CREATE TABLE routes(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL REFERENCES institutions(id),name TEXT NOT NULL,color TEXT NOT NULL DEFAULT '#11243A',position INTEGER NOT NULL DEFAULT 0,import_key TEXT,source TEXT NOT NULL DEFAULT '');
+    CREATE UNIQUE INDEX routes_import_key ON routes(institution_id,import_key) WHERE import_key IS NOT NULL;
+    CREATE TABLE route_stops(route_id TEXT NOT NULL REFERENCES routes(id),position INTEGER NOT NULL,stop_id TEXT NOT NULL REFERENCES stops(id),on_demand INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(route_id,position));
+    ALTER TABLE trips ADD COLUMN route_id TEXT REFERENCES routes(id);`);
+  },
 ];
 // Statuses in which a request holds a place and blocks a new request by the same student.
 export const OPEN_STATUSES = ['requested', 'accepted', 'approaching', 'boarded'];
 export const SCHEMA_VERSION = migrations.length;
 
-export function migrate(db) {
+// `target` lets tests build a genuine older schema; production always migrates fully.
+export function migrate(db, target = SCHEMA_VERSION) {
   const current = db.prepare('PRAGMA user_version').get().user_version;
   if (current > SCHEMA_VERSION)
     throw Error(
       `Database schema ${current} is newer than this server (${SCHEMA_VERSION}). Deploy the matching or newer release.`,
     );
-  for (let version = current; version < SCHEMA_VERSION; version++) {
+  for (let version = current; version < target; version++) {
     db.exec('BEGIN IMMEDIATE');
     try {
       migrations[version](db);

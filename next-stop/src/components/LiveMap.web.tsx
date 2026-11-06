@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, Text } from 'react-native';
+import { isBoardable } from '../domain';
 import type { Stop, Trip } from '../domain';
-export default function LiveMap({ stops, trip }: { stops: Stop[]; trip?: Trip }) {
+export default function LiveMap({ stops: allStops, trip }: { stops: Stop[]; trip?: Trip }) {
+  const stops = allStops.filter(isBoardable);
   const lat = trip?.lat ?? stops[0]?.lat,
     lng = trip?.lng ?? stops[0]?.lng;
   if (lat == null || lng == null) return <Text>No shared trip location yet.</Text>;

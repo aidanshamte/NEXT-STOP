@@ -11,6 +11,8 @@ STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/server" "$STAGE/deploy"
 cp "$ROOT"/server/*.mjs "$ROOT/server/package.json" "$ROOT/server/package-lock.json" "$STAGE/server/"
+# Institution data import files (public route/stop lists; no personal data).
+cp -R "$ROOT/server/imports" "$STAGE/server/imports"
 cp -R "$ROOT/deploy/systemd" "$ROOT/deploy/Caddyfile" "$ROOT/deploy/release.sh" "$ROOT/deploy/rollback.sh" "$STAGE/deploy/"
 tar -czf "$OUT/$RELEASE.tgz" -C "$STAGE" server deploy
 (cd "$OUT" && sha256sum "$RELEASE.tgz" >"$RELEASE.tgz.sha256")

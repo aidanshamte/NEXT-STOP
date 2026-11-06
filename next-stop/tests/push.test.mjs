@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createApp } from '../server/app.mjs';
-import { openDatabase, SCHEMA_VERSION } from '../server/db.mjs';
+import { migrate, openDatabase, SCHEMA_VERSION } from '../server/db.mjs';
 import { createExpoTransport } from '../server/push.mjs';
 import { hashPassword } from '../server/security.mjs';
 import { seedInstitutions } from './fixtures.mjs';
@@ -269,8 +269,9 @@ test('approaching holds a seat, can be cancelled by the student, and migration k
   try {
     const path = join(dir, 'v2.db');
     // Build a schema-2 database with a request in it.
-    const legacy = openDatabase(path);
-    legacy.exec('PRAGMA user_version=2');
+    const legacy = new DatabaseSync(path);
+    legacy.exec('PRAGMA foreign_keys=ON');
+    migrate(legacy, 2);
     legacy.close();
     const raw = new DatabaseSync(path);
     raw.exec(`DROP TABLE requests;
@@ -278,7 +279,7 @@ test('approaching holds a seat, can be cancelled by the student, and migration k
       DROP TABLE IF EXISTS push_tokens; DROP TABLE IF EXISTS push_tickets;
       INSERT INTO institutions VALUES ('org','Legacy College','college');
       INSERT INTO users(id,name,email,password) VALUES ('s','Student','s@example.com','x:y');
-      INSERT INTO stops VALUES ('a','org','A',41,-73,0),('b','org','B',41.01,-73,1);
+      INSERT INTO stops(id,institution_id,name,lat,lng,position) VALUES ('a','org','A',41,-73,0),('b','org','B',41.01,-73,1);
       INSERT INTO trips(id,institution_id,name) VALUES ('t','org','Shuttle');
       INSERT INTO requests VALUES ('old','org','s','t','a','b','boarded',1700000000000);`);
     raw.close();

@@ -73,7 +73,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'android.permission.USE_BIOMETRIC',
         'android.permission.USE_FINGERPRINT',
       ],
-      adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#11243A' },
+      // Approved artwork: coral N/location-pin on the logo's warm white.
+      adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#FEFAF4' },
       ...(googleServicesFile ? { googleServicesFile } : {}),
     },
     web: { favicon: './assets/favicon.png', name: 'NEXT STOP', shortName: 'NEXT STOP' },
@@ -88,7 +89,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...googlePlugins,
       'expo-router',
       'expo-font',
-      'expo-splash-screen',
+      [
+        'expo-splash-screen',
+        { image: './assets/splash-icon.png', imageWidth: 160, backgroundColor: '#FEFAF4' },
+      ],
       'expo-dev-client',
       'expo-secure-store',
       ['expo-build-properties', { android: { usesCleartextTraffic: allowLocalHttp } }],
