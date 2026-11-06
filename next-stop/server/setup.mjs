@@ -30,7 +30,7 @@ db.exec('BEGIN');
 try {
   db.prepare('INSERT INTO institutions VALUES (?,?,?)').run(org, values.name.trim(), values.kind);
   if (!existing)
-    db.prepare('INSERT INTO users VALUES (?,?,?,?)').run(
+    db.prepare('INSERT INTO users(id,name,email,password) VALUES (?,?,?,?)').run(
       userId,
       'Transport Administrator',
       email,

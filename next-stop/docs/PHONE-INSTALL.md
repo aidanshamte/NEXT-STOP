@@ -2,7 +2,7 @@
 
 ## Before building either platform
 
-1. Install dependencies with `npm ci` using Node 24+.
+1. Install dependencies with `npm ci` using Node 24+; configure real SMTP and Google IDs using AUTH-SETUP.md.
 2. Create your institution with `npm run setup` (see README), then run `npm run api`.
 3. Connect the computer and both phones to the **same trusted Wi-Fi**. A private router/hotspot is often easier than university Wi-Fi, which may isolate devices.
 4. In a phone browser, open the printed LAN address plus `/health`, for example `http://192.168.1.20:4000/health`. It should return `service: next-stop`. If not, resolve the firewall, IP, or Wi-Fi isolation before troubleshooting GPS.
@@ -22,7 +22,7 @@ npx eas-cli@latest build:configure
 npx eas-cli@latest build --profile local-network --platform android
 ```
 
-Complete project/signing prompts with your team's account. Because app.config.ts is dynamic, if EAS asks you to add a project ID manually, set EAS_PROJECT_ID to the exact ID it returns in your .env and matching Expo build environment, then rerun the build. The profile produces an APK. Open the resulting build link on the Android phone and install it. Internal installation may require allowing that installer source. Enter the server's LAN URL in NEXT STOP and sign in.
+Complete project/signing prompts with your team's account. Because app.config.ts is dynamic, if EAS asks you to add a project ID manually, set EAS_PROJECT_ID to the exact ID it returns in your .env and matching Expo build environment, then rerun the build. The profile produces an APK. Open the resulting build link on the Android phone and install it. Internal installation may require allowing that installer source. Supply EXPO_PUBLIC_API_URL in the build environment before creating this installed build; users then sign in normally without a server field.
 
 If Android Studio, a supported JDK, and the Android SDK are already configured on your computer, you can instead build/run directly with a USB-connected device:
 
@@ -67,6 +67,8 @@ This direct development route may require Metro and Xcode signing configuration.
 Allow **Local Network**, **Precise Location**, and the requested background/Always location access for the driver. If iOS initially gives only When In Use, review Location Services settings and retry. Do not force-quit the app during the background test. Locked-screen delivery, indicators, Wi-Fi behavior, and battery impact must be validated on actual iPhones.
 
 ## Both phones: real journey acceptance test
+
+Set the actual API origin in EXPO_PUBLIC_API_URL before building each installed app. Sign in normally; there is no user-entered server address. Registration verifies a real email before joining an institution.
 
 Use the driver account on phone A and a student account on phone B. Have the administrator approve both and create actual stops and the assigned shuttle first. Do not operate app controls while driving; use a parked vehicle or a passenger tester.
 

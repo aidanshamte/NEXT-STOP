@@ -1,6 +1,6 @@
 # NEXT STOP roadmap
 
-## Implemented in v0.2
+## Implemented foundation (v0.3)
 
 - [x] Real server connection as the only app runtime; no demo data feed
 - [x] Real institution/admin bootstrap with empty initial database
@@ -14,7 +14,10 @@
 - [x] Device-install guide for both Android and iPhone
 - [x] HTTP/WS integration, authorization, persistence and native-config tests
 
-## Next acceptance gate: physical phones
+## Next acceptance gate: real providers and physical phones
+
+- [ ] Configure the team’s SMTP sender and Google OAuth clients, then send/verify an actual mailbox code and complete real Google sign-in.
+- [ ] Configure a real HTTPS API origin in installed/release builds.
 
 - [ ] Create a team-owned Expo project/signing setup and configure Android map key
 - [ ] Build/install signed Android and iOS apps
@@ -32,7 +35,9 @@ These are not marked complete by bundling or server tests.
 - [ ] Route-aware ETA and operating rules for skipping unrequested stops while preserving drop-offs
 - [ ] Push notification delivery with durable outbox/receipts; incident escalation approved by operator
 - [ ] Permission/error telemetry, native task recovery, durable location/event processing where needed
-- [ ] Account recovery, email/SSO verification, suspension, session management, audit logs
+- [x] Email verification, password recovery and explicit Google identity/linking integrations
+- [ ] Live SMTP/Google credential setup and provider/device acceptance
+- [ ] Institution SSO beyond Google, suspension, session-management UI and audit logs
 - [ ] Managed database with versioned migrations, tenant constraints, backups and restore drills
 - [ ] UI feature extraction, interaction tests and accessibility audit
 

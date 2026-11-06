@@ -6,8 +6,8 @@ export function attachRealtime(server, db, origins) {
     if (typeof token !== 'string' || typeof org !== 'string') return null;
     return db
       .prepare(
-        `SELECT m.user_id FROM sessions s JOIN memberships m ON m.user_id=s.user_id
-    WHERE s.token_hash=? AND s.expires_at>? AND m.institution_id=?`,
+        `SELECT m.user_id FROM sessions s JOIN memberships m ON m.user_id=s.user_id JOIN users u ON u.id=s.user_id
+    WHERE s.token_hash=? AND s.expires_at>? AND m.institution_id=? AND u.email_verified=1`,
       )
       .get(tokenHash(token), Date.now(), org);
   };

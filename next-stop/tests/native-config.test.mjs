@@ -24,3 +24,28 @@ for (const local of [true, false])
     assert.ok(permissions.includes('android.permission.FOREGROUND_SERVICE_LOCATION'));
     assert.equal(config.extra.allowLocalHttp, local);
   });
+
+test('configured Google iOS client adds its actual reversed-client URL scheme', () => {
+  const client = '123456789-fixture.apps.googleusercontent.com';
+  const raw = execFileSync(
+    process.execPath,
+    ['node_modules/expo/bin/cli', 'config', '--type', 'introspect', '--json'],
+    {
+      env: {
+        ...process.env,
+        EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: client,
+        GOOGLE_IOS_URL_SCHEME: '',
+        ALLOW_LOCAL_HTTP: '0',
+      },
+      encoding: 'utf8',
+      maxBuffer: 4 * 1024 * 1024,
+    },
+  );
+  const config = JSON.parse(raw),
+    urls = config._internal.modResults.ios.infoPlist.CFBundleURLTypes;
+  assert.ok(
+    urls.some((entry) =>
+      entry.CFBundleURLSchemes.includes('com.googleusercontent.apps.123456789-fixture'),
+    ),
+  );
+});

@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
-import { normalizeServerUrl } from '../network';
-export let API_URL = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
+import { normalizeServerUrl, resolveApiOrigin, permitHttp } from '../network';
+export let API_URL = '';
 let sessionToken: string | null = null;
 export class ApiError extends Error {
   constructor(
@@ -13,30 +13,37 @@ export class ApiError extends Error {
   }
 }
 export async function restoreServer() {
-  const saved =
-    Platform.OS === 'web'
-      ? globalThis.localStorage?.getItem('nextstop-server')
-      : await SecureStore.getItemAsync('nextstop-server');
-  if (saved) API_URL = normalizeServerUrl(saved);
+  API_URL = resolveApiOrigin({
+    configured: process.env.EXPO_PUBLIC_API_URL,
+    development: __DEV__,
+    hostUri: Constants.expoConfig?.hostUri,
+    webOrigin:
+      Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : null,
+  });
+  if (API_URL) {
+    const next = normalizeServerUrl(API_URL);
+    if (
+      next.startsWith('http:') &&
+      !permitHttp({
+        development: __DEV__,
+        expoGo: Constants.executionEnvironment === 'storeClient',
+        web: Platform.OS === 'web',
+        localBuild: Constants.expoConfig?.extra?.allowLocalHttp === true,
+      })
+    )
+      throw Error('Unable to connect securely. Please contact NEXT STOP support.');
+  }
   return API_URL;
 }
-export async function configureServer(value: string) {
-  const next = normalizeServerUrl(value);
-  if (
-    Platform.OS !== 'web' &&
-    next.startsWith('http:') &&
-    !Constants.expoConfig?.extra?.allowLocalHttp
-  )
-    throw Error(
-      'This build requires HTTPS. Install the local-network build to connect over local HTTP.',
-    );
-  if (API_URL !== next) await setToken(null);
-  API_URL = next;
-  if (Platform.OS === 'web') globalThis.localStorage?.setItem('nextstop-server', next);
-  else await SecureStore.setItemAsync('nextstop-server', next);
-}
 export async function restoreToken() {
-  if (Platform.OS !== 'web') sessionToken = await SecureStore.getItemAsync('nextstop-session');
+  if (Platform.OS !== 'web') {
+    const origin = await SecureStore.getItemAsync('nextstop-session-origin');
+    if (origin !== API_URL) {
+      await setToken(null);
+      return null;
+    }
+    sessionToken = await SecureStore.getItemAsync('nextstop-session');
+  }
   return sessionToken;
 }
 export function getToken() {
@@ -45,15 +52,18 @@ export function getToken() {
 export async function setToken(token: string | null) {
   sessionToken = token;
   if (Platform.OS !== 'web') {
-    if (token)
-      await SecureStore.setItemAsync('nextstop-session', token, {
-        keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
-      });
-    else await SecureStore.deleteItemAsync('nextstop-session');
+    if (token) {
+      const options = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
+      await SecureStore.setItemAsync('nextstop-session', token, options);
+      await SecureStore.setItemAsync('nextstop-session-origin', API_URL, options);
+    } else {
+      await SecureStore.deleteItemAsync('nextstop-session');
+      await SecureStore.deleteItemAsync('nextstop-session-origin');
+    }
   }
 }
 export async function api<T = unknown>(path: string, body?: object): Promise<T> {
-  if (!API_URL) throw Error('Connect to your local or hosted NEXT STOP server first.');
+  if (!API_URL) throw Error('NEXT STOP is not available right now. Please try again shortly.');
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
@@ -63,19 +73,19 @@ export async function api<T = unknown>(path: string, body?: object): Promise<T> 
         ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(20000),
     });
   } catch {
-    throw Error(
-      'Cannot reach the server. Check Wi-Fi, the server address, firewall, and whether the computer is awake.',
-    );
+    throw Error('We couldn’t connect. Check your internet connection and try again.');
   }
   let result;
   try {
     result = await response.json();
   } catch {
-    throw Error('The server did not return NEXT STOP JSON. Check the address.');
+    console.warn('NEXT STOP received a non-JSON API response; check EXPO_PUBLIC_API_URL.');
+    throw Error('NEXT STOP is temporarily unavailable. Please try again shortly.');
   }
-  if (!response.ok) throw new ApiError(result.error || 'Request failed.', response.status);
+  if (!response.ok)
+    throw new ApiError(result.error || 'Something went wrong. Please try again.', response.status);
   return result as T;
 }

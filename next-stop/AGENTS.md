@@ -1,6 +1,6 @@
 # Working on NEXT STOP
 
-Read README.md, docs/PHONE-INSTALL.md and docs/ARCHITECTURE.md first. This is a real, multi-institution shuttle app with a local-capable server, not a demo.
+Read README.md, docs/AUTH-SETUP.md, docs/PHONE-INSTALL.md and docs/ARCHITECTURE.md first. This is a real, multi-institution shuttle app with a local-capable server, not a demo.
 
 ## Commands
 
@@ -26,3 +26,11 @@ Check package.json's Expo major and matching versioned docs before changing Expo
 ## Next work
 
 Follow docs/ROADMAP.md. First get signed native builds onto both physical devices and run the actual journey/lock-screen/disconnect acceptance test. Do not substitute bundling for device results. Continue extracting App.tsx into feature screens without changing authorization or transport behavior.
+
+## Authentication and onboarding
+
+- Normal users create/sign in to accounts, verify their email, then choose a role and join an institution. Never reintroduce server entry in user onboarding.
+- SMTP and Google require real team-provided configuration. Never fake provider success, return OTPs to clients, log codes, or mark email verified without proof.
+- Codes expire, are hashed, rate-limited and consumed once. Reset revokes all sessions. Google tokens must pass backend verification; do not merge an existing email account silently.
+- Google native SDK and background GPS need installed native builds. Do not claim live-provider or device validation from mocked-provider tests or bundling.
+- Existing data must survive migrations. Never overwrite .env, delete databases or automatically mark migrated emails verified.

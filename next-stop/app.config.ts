@@ -1,12 +1,21 @@
 import type { ExpoConfig, ConfigContext } from 'expo/config';
 export default ({ config }: ConfigContext): ExpoConfig => {
   const allowLocalHttp = process.env.ALLOW_LOCAL_HTTP === '1';
+  const iosGoogleId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+  const googleScheme =
+    process.env.GOOGLE_IOS_URL_SCHEME ||
+    (iosGoogleId?.endsWith('.apps.googleusercontent.com')
+      ? 'com.googleusercontent.apps.' + iosGoogleId.replace('.apps.googleusercontent.com', '')
+      : '');
+  const googlePlugins: NonNullable<ExpoConfig['plugins']> = googleScheme
+    ? [['@react-native-google-signin/google-signin', { iosUrlScheme: googleScheme }]]
+    : [];
   return {
     ...config,
     name: allowLocalHttp ? 'NEXT STOP Local' : 'NEXT STOP',
     slug: 'next-stop',
     scheme: 'nextstop',
-    version: '0.2.0',
+    version: '0.3.0',
     orientation: 'portrait',
     userInterfaceStyle: 'light',
     icon: './assets/icon.png',
@@ -31,6 +40,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     plugins: [
       ['./plugins/withLocalTransport.cjs', { allowLocalHttp }],
+      ...googlePlugins,
       'expo-router',
       'expo-font',
       'expo-splash-screen',

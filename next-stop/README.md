@@ -6,41 +6,32 @@ A school and college shuttle app with actual accounts, institution permissions, 
 
 The server can run on your computer. Android and iPhone apps connect to it over the same Wi-Fi; a public cloud backend is not required for that local test. Physical-device GPS and signed installation still need to be performed on your devices. This repository contains source, not an already signed APK/IPA.
 
-## 1. Create your institution and start the server
+## 1. Configure services and start the API
 
-Install **Node.js 24+**, open a terminal in the project folder, then:
+Prerequisite: Node 24+. Run `npm ci`, then configure `.env` using `.env.example` without overwriting existing values. Follow **[docs/AUTH-SETUP.md](docs/AUTH-SETUP.md)** to supply real SMTP delivery credentials and Google OAuth client IDs. There is no verification-code bypass or pretend Google login.
 
 ```bash
-npm ci
 npm run setup -- --name "Your school or college" --email "your-real-admin-email@school.edu" --kind college
 npm run api
 ```
 
-Use `--kind school` for a school. The setup command prints a generated administrator password: save it privately. It does not add invented stops, buses, students, or locations. To create another institution, run setup again with the new institution name. An existing administrator email keeps its existing password and gets a second institution membership.
+Save the generated administrator password privately. The operator creates the institution; ordinary users simply create an account in the app. The administrator must verify their real mailbox too. Data remains in `data/next-stop.db` and survives server restarts.
 
-The API prints the computer's LAN address, such as `http://192.168.1.20:4000`. Leave the server running and keep the computer awake. Data persists in `data/next-stop.db`. Do not delete that folder to “restart” the app; it contains your real accounts and trips.
+## 2. Open the app and create an account normally
 
-If you used an earlier version's sample database, use a **new empty DATABASE_PATH** for this version instead of retaining fictional records. No data is silently deleted or migrated.
-
-## 2. Configure actual service
-
-You can do administration from a browser on the server computer while preparing phone builds:
+In another terminal:
 
 ```bash
-npm run web
+npm run start:go
 ```
 
-Enter `http://localhost:4000` in the app's server field and connect. Sign in using the administrator credentials printed by setup.
+For web: `npm run web`. For an installed development client: `npm run start:dev`.
 
-1. Have the driver and students create their own accounts in your institution. Parents can also register.
-2. In Dispatch, verify identities and approve their pending memberships.
-3. Add at least two **actual** stops using verified latitude/longitude. On a location-capable device, “Use my current GPS” captures the stop position.
-4. Enter a shuttle name, passenger capacity, and approved driver; create the assigned shuttle.
-5. The assigned driver starts service and enables GPS tracking. Students choose that shuttle and request pickup.
-6. Driver accepts the request, confirms boarding, and confirms drop-off. Open rider screens update through the live connection.
-7. A student can grant an approved parent's email trip visibility in Account and revoke it later. This shares journey status and the assigned vehicle after acceptance, not the student's phone location.
+There is no server-address screen. During Expo development, the app derives the API hostname from the Expo host and uses port 4000. Set `EXPO_PUBLIC_API_URL` for a separate API/tunnel or installed production build. Production needs your own real HTTPS endpoint. Supplying a URL is the development team's job, not a registration step for users.
 
-The current guardian flow is student-authorized sharing suitable for a college pilot. Verified guardianship, school-managed child accounts, and guardian handover are separate unfinished school-deployment requirements.
+The user flow is **Create account → Verify email → Choose a role → Join an institution**. Returning users choose Sign in. Forgot password sends an actual reset code. Google identity is verified on the backend; native Google sign-in requires a configured installed app, while email accounts work in Expo Go. Accounts persist on the API server, not in simulated phone state.
+
+After sign-in, the institution administrator approves memberships, adds actual stops and assigns shuttles. Driver/student/parent realtime functionality is preserved. Parent visibility still requires an explicit student grant. Email verification does not grant institution access or driver approval.
 
 ## 3. Install on Android and iPhone
 
@@ -64,7 +55,8 @@ Driver GPS → your computer's server → authenticated WebSocket event → auth
 
 ## Source layout
 
-- `App.tsx` — real connection/auth flow and student/driver/parent/dispatch workspaces
+- `App.tsx` — session restoration and student/driver/parent/dispatch workspaces
+- `src/features/auth/` — polished signup/sign-in, email codes, password recovery, Google UI and institution onboarding
 - `src/app/` — Expo Router entry; registers the native background task
 - `src/hooks/useLiveSnapshot.ts` — scoped snapshots, live events, recovery
 - `src/services/` — server configuration, secure sessions, realtime client, GPS task
@@ -105,4 +97,4 @@ Suggested Codex task:
 
 > Read AGENTS.md, README.md, docs/PHONE-INSTALL.md and docs/ROADMAP.md. Run the checks, then help me build and install NEXT STOP on Android and iPhone. Keep all transport data real. Preserve institution isolation, approved-driver assignment, and student-controlled sharing. Do not report device tests as passing until they actually run.
 
-No remote GitHub repository, cloud server, store listing, or signed app binary has been created by this source delivery. Store release, push notifications, route optimization, ETA, account recovery, and fleet-scale infrastructure are unfinished. Source licensing and brand availability remain your team's decisions.
+No remote GitHub repository, cloud server, store listing, or signed app binary has been created by this source delivery. Store release, push notifications, route optimization, ETA and fleet-scale infrastructure are unfinished. Password recovery is implemented; external mail/Google configuration and live-device verification remain required. Source licensing and brand availability remain your team's decisions.

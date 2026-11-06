@@ -2,11 +2,13 @@
 
 The Expo app connects to a Node 24 HTTP/WebSocket server with SQLite persistence. There is no demo runtime, simulated vehicle source, or automatic institution/route seed. The setup CLI creates a real institution and initial administrator; approved administrators configure actual stops and assign shuttles through Dispatch.
 
-## Connection and institution boundaries
+## Accounts and institution boundaries
 
-The installed app saves a server origin and mobile session token in SecureStore. Server changes stop driver tracking and clear the previous token. Browser server configuration is saved in localStorage; browser tokens remain memory-only. Production builds use HTTPS; an explicit local-network build supports private/local HTTP addresses on trusted test networks.
+Ordinary signup creates a global persistent account, delivers a real email code and issues a session only after verification. Role/institution membership is a separate approved request after sign-in. Server-side SMTP handles verification/reset emails; Google identity uses validated signed ID tokens and an explicit linking policy. See AUTH-SETUP.md for credentials, single-use code controls and provider limits.
 
-Every protected endpoint authenticates the token and institution membership server-side. Approved students can create their own requests. Driver registration remains pending until verified by an administrator; even approved drivers can operate only their assigned trips. Parent visibility requires an explicit current student grant within the same institution. Multiple institution memberships are supported without a UI role override.
+Normal users never configure a server. Expo development derives the API origin automatically, while installed apps use EXPO_PUBLIC_API_URL. SecureStore stores native tokens with their API origin; old tokens are cleared if the configured origin changes. Production uses HTTPS, with private-LAN HTTP permitted only in supported development/internal contexts. There is no fake default backend URL.
+
+Every protected transport endpoint authenticates the token, verified email and institution membership/role. Driver approval and assignment remain separate. Parents still require a current student grant; email verification and Google login grant no transport privilege by themselves. Snapshot scope changes hide previous identities/institutions immediately.
 
 ## Real-time flow
 
@@ -44,7 +46,7 @@ Verified child guardianship, school-managed child accounts, and handover workflo
 
 Local service needs phones and the server computer on a reachable shared network, a firewall path to TCP 4000, and an awake computer. GPS and realtime messages do not need cloud hosting; map tiles can require internet. Wi-Fi client isolation can prevent connectivity. Outside the LAN, a secure reachable server/network is needed.
 
-SQLite, synchronous password hashing, and a single-process rate limiter support this small deployment; they are not a fleet-scale architecture. Next production work includes managed PostgreSQL/migrations, audit and retention controls, account recovery/suspension, durable notification delivery, deployment ownership, monitoring, backups/restore testing, and load/security review.
+SQLite, synchronous password hashing, and a single-process rate limiter support this small deployment; they are not a fleet-scale architecture. Next production work includes managed PostgreSQL/migrations, audit and retention controls, account suspension, durable notification delivery, deployment ownership, monitoring, backups/restore testing, and load/security review.
 
 ## References
 

@@ -1,14 +1,16 @@
 import { createServer } from 'node:http';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { openDatabase } from './db.mjs';
 import { attachRealtime } from './realtime.mjs';
-import { hashPassword, verifyPassword, tokenHash } from './security.mjs';
+import { tokenHash } from './security.mjs';
+import { createAuth } from './auth.mjs';
 export function createApp({
   dbPath = './data/next-stop.db',
   origins = ['http://localhost:8081'],
+  authOptions = {},
 } = {}) {
   const db = openDatabase(dbPath);
-  const attempts = new Map();
+  const auth = createAuth(db, authOptions);
   const fail = (status, message) => {
     throw Object.assign(new Error(message), { status });
   };
@@ -60,58 +62,14 @@ export function createApp({
         return body[key].trim();
       };
       if (path === '/health' && req.method === 'GET')
-        return send(200, { ok: true, service: 'next-stop', protocol: 2 });
+        return send(200, { ok: true, service: 'next-stop', protocol: 3 });
       if (path === '/institutions' && req.method === 'GET')
         return send(200, db.prepare('SELECT * FROM institutions').all());
-      if (['/auth/register', '/auth/login'].includes(path) && req.method === 'POST') {
-        // Local-pilot protection. Use a distributed rate limiter behind a production gateway.
-        const ip = req.socket.remoteAddress;
-        const now = Date.now();
-        let rate = attempts.get(ip);
-        if (!rate || now - rate.start > 60000) {
-          rate = { start: now, count: 0 };
-          attempts.set(ip, rate);
-        }
-        if (++rate.count > 30) fail(429, 'Too many attempts. Try again in a minute.');
-        for (const [key, value] of attempts) if (now - value.start > 60000) attempts.delete(key);
-        const email = text('email').toLowerCase();
-        const password = text('password', 256);
-        let user;
-        if (path.endsWith('register')) {
-          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(400, 'Enter a valid email.');
-          if (password.length < 12) fail(400, 'Use at least 12 characters for your password.');
-          const name = text('name', 80),
-            role = text('role'),
-            org = text('institutionId');
-          if (!['student', 'parent', 'driver'].includes(role)) fail(400, 'Invalid role.');
-          if (!db.prepare('SELECT id FROM institutions WHERE id=?').get(org))
-            fail(404, 'Institution not found.');
-          if (db.prepare('SELECT id FROM users WHERE email=?').get(email))
-            fail(409, 'Account exists. Sign in instead.');
-          const id = randomUUID();
-          db.prepare('INSERT INTO users VALUES (?,?,?,?)').run(
-            id,
-            name,
-            email,
-            hashPassword(password),
-          );
-          // All memberships are pending until an operator verifies institution affiliation.
-          db.prepare('INSERT INTO memberships VALUES (?,?,?,0)').run(id, org, role);
-          user = { id };
-          changedOrg = org;
-        } else {
-          user = db.prepare('SELECT * FROM users WHERE email=?').get(email);
-          if (!user || !verifyPassword(password, user.password))
-            fail(401, 'Incorrect email or password.');
-        }
-        const token = randomBytes(32).toString('hex');
-        db.prepare('INSERT INTO sessions VALUES (?,?,?)').run(
-          tokenHash(token),
-          user.id,
-          Date.now() + 86400000 * 7,
-        );
-        return send(200, { token });
-      }
+      if (
+        path !== '/auth/google/link' &&
+        (await auth.handle({ path, method: req.method, body, req, send }))
+      )
+        return;
       const token = req.headers.authorization?.replace(/^Bearer /, '');
       const session =
         token &&
@@ -120,13 +78,23 @@ export function createApp({
           .get(tokenHash(token), Date.now());
       if (!session) fail(401, 'Please sign in.');
       const uid = session.user_id;
+      if (path === '/auth/google/link') {
+        await auth.handle({ path, method: req.method, body, req, send, uid });
+        return;
+      }
+      if (!db.prepare('SELECT email_verified FROM users WHERE id=?').get(uid)?.email_verified)
+        fail(403, 'Verify your email before continuing.');
       if (path === '/auth/logout' && req.method === 'POST') {
         db.prepare('DELETE FROM sessions WHERE token_hash=?').run(tokenHash(token));
         return send(200, { ok: true });
       }
       if (path === '/me' && req.method === 'GET') {
         return send(200, {
-          user: db.prepare('SELECT id,name,email FROM users WHERE id=?').get(uid),
+          user: db
+            .prepare(
+              'SELECT id,name,email,email_verified,google_sub IS NOT NULL AS google_linked FROM users WHERE id=?',
+            )
+            .get(uid),
           memberships: db
             .prepare(
               'SELECT m.institution_id AS id,i.name,i.kind,m.role,m.approved FROM memberships m JOIN institutions i ON i.id=m.institution_id WHERE m.user_id=?',
@@ -134,13 +102,30 @@ export function createApp({
             .all(uid),
         });
       }
+      if (path === '/memberships' && req.method === 'POST') {
+        const institutionId = text('institutionId'),
+          role = text('role');
+        if (!['student', 'parent', 'driver'].includes(role))
+          fail(400, 'Choose Student, Parent, or Driver.');
+        if (!db.prepare('SELECT id FROM institutions WHERE id=?').get(institutionId))
+          fail(404, 'Institution not found.');
+        if (membership(uid, institutionId)) fail(409, 'You already belong to this institution.');
+        db.prepare('INSERT INTO memberships VALUES (?,?,?,0)').run(uid, institutionId, role);
+        changedOrg = institutionId;
+        send(201, { pending: true });
+        return;
+      }
       const org = url.searchParams.get('institutionId') || body.institutionId;
       if (typeof org !== 'string') fail(400, 'Choose an institution.');
       const member = membership(uid, org);
       if (!member) fail(403, 'You do not belong to this institution.');
       changedOrg = org;
       if (path === '/snapshot' && req.method === 'GET') {
-        const user = db.prepare('SELECT id,name,email FROM users WHERE id=?').get(uid);
+        const user = db
+          .prepare(
+            'SELECT id,name,email,email_verified,google_sub IS NOT NULL AS google_linked FROM users WHERE id=?',
+          )
+          .get(uid);
         const memberships = db
           .prepare(
             'SELECT m.institution_id AS id,i.name,m.role,m.approved FROM memberships m JOIN institutions i ON i.id=m.institution_id WHERE user_id=?',

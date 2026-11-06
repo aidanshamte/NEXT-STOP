@@ -1,16 +1,23 @@
-# Validation — November 5, 2026, v0.2
+# Validation — November 5, 2026, v0.3
 
-Passed in the development environment:
+## Passed here
 
-- Lint: zero errors/warnings across application, components, hooks, services and native app configuration.
-- TypeScript: passed.
-- Tests: 16 passing tests, including real HTTP and WebSocket clients against temporary databases, cross-institution denial, assigned-driver restrictions, approval, parent revocation, capacity/lifecycle rules, GPS timestamp validation, persistence across server recreation, and empty startup.
-- Operator bootstrap CLI: creates institutions/admin memberships without fake stops or vehicles; existing accounts retain credentials.
-- Native configuration introspection: Android background-location and foreground-service permissions, iOS background-location mode, local HTTP enabled for internal builds, and HTTPS transport protections for production.
-- Web, iOS and Android JavaScript/Hermes exports: successful.
+- Lint and TypeScript for the app, authentication screens, services and native configuration.
+- 26 tests: real HTTP/database signup and membership separation, delivered-code gate, send failures, expiry/replay/attempt limits, reset/session revocation, explicit Google account linking, web nonce consumption, legacy data migration, institution isolation, transport lifecycle, realtime WebSocket delivery/persistence and local/production transport policy.
+- Native configuration introspection for background-location permissions and the configured Google iOS URL scheme.
+- Web, Android and iOS JavaScript/Hermes exports.
 
-No signed APK/IPA was produced here. No physical-device GPS, locked-screen background delivery, battery test, native map-key test, browser interaction test, real operator journey or store submission was performed. JavaScript exports and native configuration inspection are not device tests.
+Authentication tests inject the mail-delivery boundary and Google's verified-token result. The real adapters use SMTP with TLS and Google's ID-token verification library, but this environment has no team SMTP sender or OAuth project configured. These tests do not prove live email delivery or a successful real Google account login.
 
-The updated source removes demo mode and operational sample seeds. Synthetic data exists only in tests. No runtime database, credentials, dependency folders, compiled bundles, or Git metadata are included in the source archive. No cloud service or remote GitHub repository was created.
+## Still requires your configuration and devices
 
-Complete the device acceptance test in PHONE-INSTALL.md before describing phone/background behavior as verified.
+- Real SMTP credential/sender configuration and actual mailbox delivery.
+- Google OAuth clients, authorized web origins, Android signing fingerprint and iOS client scheme; real provider sign-in.
+- A team-hosted HTTPS API origin for installed/release builds.
+- Signed APK/IPA creation, physical-device and locked-screen GPS acceptance.
+- Browser interaction/visual QA; no browser executable was available in this workspace.
+- Cloud deployment, production operating review and store submission.
+
+No fake verification codes, automatic migrated-email verification, simulated accounts, database deletion or provider-success bypass is included in normal runtime. Synthetic identities and delivery captures exist only in tests. No credentials or runtime database are included in the source archive.
+
+The GitHub remote required authentication here, so source changes have not been pushed to the user's remote repository. Apply/review the included patch or updated source in your own checkout, preserving local configuration and data.

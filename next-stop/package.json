@@ -1,9 +1,10 @@
 {
   "name": "next-stop",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
+    "@react-native-google-signin/google-signin": "^17.0.0",
     "expo": "~58.0.23",
     "expo-build-properties": "~58.0.12",
     "expo-constants": "~58.0.15",
@@ -16,6 +17,8 @@
     "expo-splash-screen": "~58.0.13",
     "expo-status-bar": "~58.0.4",
     "expo-task-manager": "~58.0.13",
+    "google-auth-library": "^11.3.3",
+    "nodemailer": "^10.3.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.1",
@@ -40,10 +43,12 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
-    "api": "node server/index.mjs",
+    "api": "node --env-file-if-exists=.env server/index.mjs",
     "export:web": "expo export --platform web",
     "lint": "eslint App.tsx src app.config.ts --max-warnings=0",
-    "setup": "node server/setup.mjs"
+    "setup": "node --env-file-if-exists=.env server/setup.mjs",
+    "start:go": "expo start --go",
+    "start:dev": "expo start --dev-client"
   },
   "private": true,
   "engines": {

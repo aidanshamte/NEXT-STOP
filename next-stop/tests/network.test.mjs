@@ -18,3 +18,32 @@ test('accepts local network origins and requires TLS for public addresses', () =
   ])
     assert.throws(() => normalizeServerUrl(value));
 });
+
+import { resolveApiOrigin, permitHttp } from '../src/network.ts';
+test('normal users need no server field: configured API or development host resolves automatically', () => {
+  assert.equal(
+    resolveApiOrigin({ development: true, hostUri: '10.100.88.36:8081' }),
+    'http://10.100.88.36:4000',
+  );
+  assert.equal(
+    resolveApiOrigin({ development: true, webOrigin: 'http://localhost:8081' }),
+    'http://localhost:4000',
+  );
+  assert.equal(
+    resolveApiOrigin({ development: false, configured: 'https://transport.example.test' }),
+    'https://transport.example.test',
+  );
+  assert.equal(resolveApiOrigin({ development: false, hostUri: '10.0.0.1:8081' }), '');
+  assert.equal(
+    permitHttp({ development: true, expoGo: true, web: false, localBuild: false }),
+    true,
+  );
+  assert.equal(
+    permitHttp({ development: false, expoGo: true, web: false, localBuild: false }),
+    false,
+  );
+  assert.equal(
+    permitHttp({ development: false, expoGo: false, web: false, localBuild: true }),
+    true,
+  );
+});

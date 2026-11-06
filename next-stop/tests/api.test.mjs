@@ -9,18 +9,27 @@ import { seedInstitutions } from './fixtures.mjs';
 
 test('authenticated multi-institution pickup lifecycle and permission boundaries', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'nextstop-'));
-  const { server, db, realtime } = createApp({ dbPath: join(dir, 'test.db') });
+  const deliveries = [];
+  const { server, db, realtime } = createApp({
+    dbPath: join(dir, 'test.db'),
+    authOptions: {
+      mailer: async (message) => {
+        deliveries.push(message);
+      },
+    },
+  });
   seedInstitutions(db);
   const pass = 'a-long-pilot-password';
   for (const org of ['northbridge', 'lakeside'])
     for (const role of ['student', 'driver', 'parent', 'admin']) {
       const id = `${org}-${role}`;
-      db.prepare('INSERT INTO users VALUES (?,?,?,?)').run(
+      db.prepare('INSERT INTO users(id,name,email,password) VALUES (?,?,?,?)').run(
         id,
         role,
         `${id}@example.com`,
         hashPassword(pass),
       );
+      db.prepare('UPDATE users SET email_verified=1 WHERE id=?').run(id);
       db.prepare('INSERT INTO memberships VALUES (?,?,?,1)').run(id, org, role);
     }
   db.prepare(
@@ -206,9 +215,10 @@ test('authenticated multi-institution pickup lifecycle and permission boundaries
   await t.test(
     'capacity, onboard protection, incident reporting, and trip completion',
     async () => {
-      db.prepare("INSERT INTO users VALUES ('second','Second Student','second@example.com',?)").run(
-        hashPassword(pass),
-      );
+      db.prepare(
+        "INSERT INTO users(id,name,email,password) VALUES ('second','Second Student','second@example.com',?)",
+      ).run(hashPassword(pass));
+      db.prepare("UPDATE users SET email_verified=1 WHERE id='second'").run();
       db.prepare("INSERT INTO memberships VALUES ('second','northbridge','student',1)").run();
       const second = (
         await call('/auth/login', null, { email: 'second@example.com', password: pass })
@@ -271,11 +281,15 @@ test('authenticated multi-institution pickup lifecycle and permission boundaries
       email: 'pending@example.com',
       password: pass,
       name: 'Pending Driver',
-      role: 'driver',
-      institutionId: 'northbridge',
     });
     assert.equal(r.status, 200);
-    const pending = r.data.token;
+    const verification = await call('/auth/verify', null, {
+      email: 'pending@example.com',
+      code: deliveries.at(-1).code,
+    });
+    assert.equal(verification.status, 200);
+    const pending = verification.data.token;
+    assert.equal((await action('/memberships', pending, { role: 'driver' })).status, 201);
     const snap = (await snapshot(pending)).data;
     assert.equal(snap.approved, false);
     assert.equal(snap.trips.length, 0);

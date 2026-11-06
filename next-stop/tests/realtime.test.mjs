@@ -18,8 +18,9 @@ test('real WebSocket clients receive tenant-scoped events and reread current GPS
     for (const role of ['student', 'driver', 'admin']) {
       const id = org + '-' + role;
       app.db
-        .prepare('INSERT INTO users VALUES (?,?,?,?)')
+        .prepare('INSERT INTO users(id,name,email,password) VALUES (?,?,?,?)')
         .run(id, role, id + '@example.test', hashPassword(password));
+      app.db.prepare('UPDATE users SET email_verified=1 WHERE id=?').run(id);
       app.db.prepare('INSERT INTO memberships VALUES (?,?,?,1)').run(id, org, role);
     }
   }

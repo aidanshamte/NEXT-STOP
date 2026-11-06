@@ -8,6 +8,12 @@ const { server, db, realtime } = createApp({
   ),
 });
 server.listen(port, '0.0.0.0', () => {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_FROM)
+    console.warn(
+      'Email verification needs SMTP_HOST and SMTP_FROM in .env. No verification codes will be faked or printed.',
+    );
+  if (!process.env.GOOGLE_WEB_CLIENT_ID && !process.env.GOOGLE_CLIENT_IDS)
+    console.warn('Google sign-in needs Google OAuth client configuration in .env.');
   console.log(`NEXT STOP API + WebSocket server listening on ${port}. Keep this computer awake.`);
   for (const interfaces of Object.values(networkInterfaces()))
     for (const item of interfaces || [])

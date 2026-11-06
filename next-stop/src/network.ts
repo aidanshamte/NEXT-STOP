@@ -30,3 +30,39 @@ export function normalizeServerUrl(value: string): string {
     throw Error('Public servers require HTTPS. HTTP is limited to a trusted local network.');
   return url.origin;
 }
+
+export function resolveApiOrigin({
+  configured,
+  development,
+  hostUri,
+  webOrigin,
+}: {
+  configured?: string;
+  development: boolean;
+  hostUri?: string | null;
+  webOrigin?: string | null;
+}): string {
+  if (configured?.trim()) return normalizeServerUrl(configured);
+  if (!development) return '';
+  const source = hostUri || (webOrigin ? new URL(webOrigin).host : '');
+  if (!source) return '';
+  try {
+    const host = new URL(source.includes('://') ? source : 'http://' + source).hostname;
+    return normalizeServerUrl(`http://${host}:4000`);
+  } catch {
+    return '';
+  }
+}
+export function permitHttp({
+  development,
+  expoGo,
+  web,
+  localBuild,
+}: {
+  development: boolean;
+  expoGo: boolean;
+  web: boolean;
+  localBuild: boolean;
+}) {
+  return localBuild || (development && (expoGo || web));
+}

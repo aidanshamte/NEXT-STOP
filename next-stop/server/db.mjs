@@ -14,5 +14,18 @@ export function openDatabase(path) {
   CREATE TABLE IF NOT EXISTS requests(id TEXT PRIMARY KEY,institution_id TEXT REFERENCES institutions(id),student_id TEXT REFERENCES users(id),trip_id TEXT REFERENCES trips(id),stop_id TEXT REFERENCES stops(id),destination_id TEXT REFERENCES stops(id),status TEXT NOT NULL CHECK(status IN ('requested','accepted','boarded','arrived','cancelled')),created_at INTEGER NOT NULL);
   CREATE UNIQUE INDEX IF NOT EXISTS one_open_request ON requests(student_id,institution_id) WHERE status IN ('requested','accepted','boarded');
   CREATE TABLE IF NOT EXISTS shares(student_id TEXT REFERENCES users(id),parent_id TEXT REFERENCES users(id),institution_id TEXT REFERENCES institutions(id),PRIMARY KEY(student_id,parent_id,institution_id));`);
+  const columns = db
+    .prepare('PRAGMA table_info(users)')
+    .all()
+    .map((c) => c.name);
+  if (!columns.includes('email_verified'))
+    db.exec('ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0');
+  if (!columns.includes('google_sub')) db.exec('ALTER TABLE users ADD COLUMN google_sub TEXT');
+  if (!columns.includes('password_enabled'))
+    db.exec('ALTER TABLE users ADD COLUMN password_enabled INTEGER NOT NULL DEFAULT 1');
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL;
+    CREATE TABLE IF NOT EXISTS email_codes(email TEXT NOT NULL,purpose TEXT NOT NULL,hash TEXT NOT NULL,salt TEXT NOT NULL,expires_at INTEGER NOT NULL,sent_at INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(email,purpose));
+    CREATE TABLE IF NOT EXISTS mail_limits(email TEXT NOT NULL,hour INTEGER NOT NULL,count INTEGER NOT NULL,PRIMARY KEY(email,hour));
+    CREATE TABLE IF NOT EXISTS google_challenges(hash TEXT PRIMARY KEY,expires_at INTEGER NOT NULL);`);
   return db;
 }
