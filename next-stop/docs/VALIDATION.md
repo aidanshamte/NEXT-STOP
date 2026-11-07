@@ -80,6 +80,8 @@ Test environment: a throwaway scratchpad database ("Test Institution", "Test Sto
 - **Bugs found and fixed during these runs:** checkboxes, radio buttons and tabs exposed no checked/selected state to web screen readers (now `aria-checked`/`aria-selected`); drop-off choices had no accessible name distinct from pickup choices; the stop page offered "I’m waiting here" to a rider who already had a pickup; the route lookahead could revisit the stop just passed; new API routes were not yet proxied by Caddy on the shared website origin (caught by the route test).
 - **Layout:** page width equals the viewport on every screen for all five roles (horizontal scrolling only inside the stop strip, by design); no console errors.
 
+- **Production (release `e83dc68125e2`, 2026-11-07):** the "Deploy API (Azure)" workflow and CI succeeded. `/health` reports schema 7 and the release; the institution list still returns Fairfield University after migrations 5–7. All 32 new routes reach the API from https://nextstop.software (signed out they return 401 JSON, not the web page). `node scripts/verify-web.mjs`: 17/17. The live web route bundle contains the new screens. No signed-in production session was used, and no feature was turned on for Fairfield: every stage 3 feature is still off there.
+
 **Not verified:** camera scanning, photo picking, tap-to-call/text, push delivery of the new notifications and the native map on a physical phone; arrival-estimate accuracy on real service (needs pins, routes and days of operation).
 
 ## 3. Not yet tested: needs the owner's accounts, money or devices
