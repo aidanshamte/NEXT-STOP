@@ -1,0 +1,41 @@
+{
+  "source": "https://stitch.withgoogle.com/projects/5762300554121294664",
+  "method": "HTML srcdoc of seven displayed design screens, read from shared project DOM",
+  "screens": [
+    {
+      "file": "01-stop-details.html",
+      "bytes": 131715,
+      "sha256": "7cb947e7af862e674b0ccf7f9d772eaae68a7cb8686e45c6783c6d95f194fcb0"
+    },
+    {
+      "file": "02-profile-and-settings.html",
+      "bytes": 136801,
+      "sha256": "588984be456b03d7d52bf76063210602133ed1cd0e8fd12cfb70ad26a4838fc8"
+    },
+    {
+      "file": "03-location-sharing-settings.html",
+      "bytes": 131083,
+      "sha256": "ac55032e5ecf9fda05fdb0a00bbf83906dff228ef2556fb122d094637469494f"
+    },
+    {
+      "file": "04-route-schedules.html",
+      "bytes": 148548,
+      "sha256": "8b7028b414e81a817ef583acfb4809adf4fb1ebf04a8c270c76ea2c196f3d111"
+    },
+    {
+      "file": "05-registration.html",
+      "bytes": 121884,
+      "sha256": "ee5fe4c81817756d1201baa6a8192a3a8de92ea6179d73e2edc21d3ce5f198cd"
+    },
+    {
+      "file": "06-rider-live-map-and-pickup.html",
+      "bytes": 128235,
+      "sha256": "56ff6b7619daa46aced38464f2c92772b1ae451db4039f4cae062f75e39c170a"
+    },
+    {
+      "file": "07-emergency-reference.html",
+      "bytes": 124393,
+      "sha256": "0dd42b97f184e1646428cf91bb7183f9b71a3a246c7e34e211cbdc51ad6c8c0b"
+    }
+  ]
+}

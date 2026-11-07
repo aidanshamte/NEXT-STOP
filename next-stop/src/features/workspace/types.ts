@@ -12,10 +12,11 @@ export interface Me {
   memberships: Institution[];
 }
 
-/** Runs an authenticated institution-scoped write, then refreshes and reports success. */
-export type Mutate = (path: string, body: object, success: string) => Promise<void>;
+/** Runs an authenticated institution-scoped write, then refreshes and reports success.
+ * Resolves true only when the server accepted the write. */
+export type Mutate = (path: string, body: object, success: string) => Promise<boolean>;
 /** Runs a busy-guarded action and reports thrown errors to the workspace notice. */
-export type Run = (action: () => Promise<void>) => Promise<void>;
+export type Run = (action: () => Promise<void>, key?: string) => Promise<boolean>;
 
 export const roleLabels: Record<Role, string> = {
   student: 'Student',

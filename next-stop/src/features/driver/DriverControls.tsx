@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { C } from '../../components/Brand';
 import { Button, Card, Field, Icon, SectionLabel, StatusChip, s } from '../../components/UI';
 import type { Trip } from '../../domain';
@@ -87,6 +87,9 @@ export default function DriverControls({
             : 'The installed app asks for background location and shows a tracking indicator while sharing.')}
       </Text>
       {!!trip.active && (
+        <OnboardCounter trip={trip} busy={busy} pending={pending} mutate={mutate} />
+      )}
+      {!!trip.active && (
         <Button
           secondary
           label="End service"
@@ -99,6 +102,65 @@ export default function DriverControls({
         />
       )}
     </Card>
+  );
+}
+
+/** The driver's own head count. Boardings and drop-offs confirmed in the queue adjust it
+ * automatically; these buttons correct it for riders without the app. */
+function OnboardCounter({
+  trip,
+  busy,
+  pending,
+  mutate,
+}: {
+  trip: Trip;
+  busy: boolean;
+  pending: string;
+  mutate: Mutate;
+}) {
+  const count = trip.onboard ?? 0;
+  const saving = pending === actionKey('/trips/onboard', { tripId: trip.id });
+  const set = (value: number) =>
+    mutate('/trips/onboard', { tripId: trip.id, count: value }, `Onboard count set to ${value}.`);
+  const step = (label: string, icon: 'remove' | 'add', value: number) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      disabled={busy || value < 0 || value > 200}
+      onPress={() => void set(value)}
+      style={({ pressed }) => ({
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: '#EEF2F5',
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: busy ? 0.5 : pressed ? 0.8 : 1,
+      })}
+    >
+      <Icon name={icon} size={30} />
+    </Pressable>
+  );
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={s.label}>RIDERS ON BOARD</Text>
+      <View style={[s.row, { gap: 16 }]}>
+        {step('One fewer rider on board', 'remove', count - 1)}
+        <View
+          style={{ flex: 1, alignItems: 'center' }}
+          accessible
+          accessibilityLabel={`${count} of ${trip.capacity} seats in use`}
+        >
+          <Text style={[s.title, { fontSize: 32 }]}>{saving ? '…' : count}</Text>
+          <Text style={s.caption}>of {trip.capacity} seats</Text>
+        </View>
+        {step('One more rider on board', 'add', count + 1)}
+      </View>
+      <Text style={s.caption}>
+        Boarding and drop-off confirmations update this. Correct it for riders without the app;
+        riders see it as an estimate.
+      </Text>
+    </View>
   );
 }
 

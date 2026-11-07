@@ -117,6 +117,24 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           defaultChannel: 'trip-updates',
         },
       ],
+      [
+        // Administrators photograph stops. No microphone access is requested.
+        'expo-image-picker',
+        {
+          photosPermission: 'Choose a photo of a shuttle stop to help riders recognise it.',
+          cameraPermission: 'Take a photo of a shuttle stop to help riders recognise it.',
+          microphonePermission: false,
+        },
+      ],
+      [
+        // Drivers scan rider pass QR codes. Audio is never recorded.
+        'expo-camera',
+        {
+          cameraPermission: 'Scan a rider’s NEXT STOP pass when they board.',
+          microphonePermission: false,
+          recordAudioAndroid: false,
+        },
+      ],
     ],
   };
 };

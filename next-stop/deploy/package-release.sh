@@ -11,7 +11,7 @@ OUT="$(mkdir -p "${2:-$ROOT/build/release}" && cd "${2:-$ROOT/build/release}" &&
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/server" "$STAGE/deploy"
-cp "$ROOT"/server/*.mjs "$ROOT/server/package.json" "$ROOT/server/package-lock.json" "$STAGE/server/"
+cp "$ROOT"/server/*.mjs "$ROOT"/server/*.json "$STAGE/server/"
 # Institution data import files (public route/stop lists; no personal data).
 cp -R "$ROOT/server/imports" "$STAGE/server/imports"
 cp -R "$ROOT/deploy/systemd" "$ROOT/deploy/Caddyfile" "$ROOT/deploy/release.sh" "$ROOT/deploy/rollback.sh" "$STAGE/deploy/"

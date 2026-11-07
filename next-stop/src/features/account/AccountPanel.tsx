@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { Button, Card, Field, Tag, s } from '../../components/UI';
 import LinkGoogle from '../auth/LinkGoogle';
-import type { Role, Share } from '../../domain';
+
+import type { Role, Share, Snapshot } from '../../domain';
 import { roleLabels } from '../workspace/types';
 import type { Me, Mutate } from '../workspace/types';
 import type { PushState } from '../../services/push';
@@ -21,7 +22,11 @@ export default function AccountPanel({
   onDeleteAccount,
   pushState,
   onEnablePush,
+  sharedWithMe = [],
+  hasOpenRequest = false,
 }: {
+  sharedWithMe?: NonNullable<Snapshot['sharedWithMe']>;
+  hasOpenRequest?: boolean;
   me: Me;
   role: Role;
   institutionName?: string;
@@ -37,6 +42,26 @@ export default function AccountPanel({
   onEnablePush: () => void;
 }) {
   const [deleting, setDeleting] = useState(false);
+  const [mode, setMode] = useState<'ongoing' | 'ride' | 'hours'>('ongoing');
+  const [hours, setHours] = useState(8);
+  const terms = (share: { expires_at?: number | null; request_id?: string | null }) =>
+    share.request_id
+      ? 'This ride only'
+      : share.expires_at
+        ? `Until ${new Date(share.expires_at).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`
+        : 'Until you stop sharing';
+  const option = (id: string, label: string, selected: boolean, onPress: () => void) => (
+    <Pressable
+      key={id}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      aria-checked={selected}
+      onPress={onPress}
+      style={[s.pill, selected && s.pillActive]}
+    >
+      <Text style={[s.pillText, selected && { color: 'white' }]}>{label}</Text>
+    </Pressable>
+  );
   const [confirmation, setConfirmation] = useState('');
   const passwordAccount = me.user.password_enabled !== 0;
   return (
@@ -70,8 +95,10 @@ export default function AccountPanel({
           <View style={s.divider} />
           <Text style={s.heading}>Your journey. Your choice.</Text>
           <Text style={s.body}>
-            Allow an approved parent account in your institution to see your trip progress and the
-            assigned shuttle after acceptance. Your phone location is not shared.
+            An approved parent account in your institution can see your pickup steps (requested,
+            accepted, approaching, boarded, arrived) and your assigned shuttle on the map once a
+            driver accepts. Your phone’s location is never shared. Stopping takes effect
+            immediately.
           </Text>
           <Field
             label="Approved parent account email"
@@ -79,20 +106,81 @@ export default function AccountPanel({
             onChange={setShareEmail}
             keyboardType="email-address"
           />
+          <Text style={s.label}>FOR HOW LONG</Text>
+          <View style={s.pills}>
+            {option('ongoing', 'Until I stop', mode === 'ongoing', () => setMode('ongoing'))}
+            {option('ride', 'This ride only', mode === 'ride', () => setMode('ride'))}
+            {option('hours', 'For some hours', mode === 'hours', () => setMode('hours'))}
+          </View>
+          {mode === 'hours' && (
+            <View style={s.pills}>
+              {[2, 8, 24, 72].map((h) =>
+                option(String(h), `${h} hours`, hours === h, () => setHours(h)),
+              )}
+            </View>
+          )}
+          {mode === 'ride' && !hasOpenRequest && (
+            <Text style={s.caption}>Request a pickup first; sharing ends when that ride ends.</Text>
+          )}
           <Button
-            label="Allow trip sharing"
-            disabled={busy || !shareEmail}
-            onPress={() => mutate('/shares', { email: shareEmail }, 'Trip sharing enabled.')}
+            label="Share my journeys"
+            disabled={busy || !shareEmail || (mode === 'ride' && !hasOpenRequest)}
+            onPress={() =>
+              mutate(
+                '/shares',
+                { email: shareEmail, mode, ...(mode === 'hours' ? { hours } : {}) },
+                'Journey sharing on.',
+              )
+            }
           />
           {shares.map((share) => (
             <View key={share.parent_id} style={s.request}>
-              <Text style={s.body}>{share.email}</Text>
+              <Text style={s.heading}>{share.email}</Text>
+              <Text style={s.caption}>
+                {terms(share)}
+                {share.created_at
+                  ? ` · since ${new Date(share.created_at).toLocaleDateString()}`
+                  : ''}
+              </Text>
               <Button
                 secondary
-                label="Revoke access"
+                label="Stop sharing now"
                 disabled={busy}
                 onPress={() =>
-                  mutate('/shares', { email: share.email, revoke: true }, 'Trip sharing revoked.')
+                  mutate('/shares', { email: share.email, revoke: true }, 'Sharing stopped.')
+                }
+              />
+            </View>
+          ))}
+          {shares.length > 1 && (
+            <Button
+              secondary
+              label="Stop all sharing"
+              disabled={busy}
+              onPress={() => mutate('/shares/stop-all', {}, 'All sharing stopped.')}
+            />
+          )}
+        </>
+      )}
+      {role === 'parent' && (
+        <>
+          <View style={s.divider} />
+          <Text style={s.heading}>Students sharing with you</Text>
+          {!sharedWithMe.length && (
+            <Text style={s.body}>
+              No one is sharing right now. A student shares from their own account using your email.
+            </Text>
+          )}
+          {sharedWithMe.map((share) => (
+            <View key={share.student_id} style={s.request}>
+              <Text style={s.heading}>{share.name}</Text>
+              <Text style={s.caption}>{terms(share)}</Text>
+              <Button
+                secondary
+                label="Stop following"
+                disabled={busy}
+                onPress={() =>
+                  mutate('/shares/leave', { studentId: share.student_id }, 'You stopped following.')
                 }
               />
             </View>

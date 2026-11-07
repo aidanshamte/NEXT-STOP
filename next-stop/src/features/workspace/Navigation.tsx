@@ -5,16 +5,45 @@ import { Icon, s } from '../../components/UI';
 import type { IconName } from '../../components/UI';
 import type { Role } from '../../domain';
 
-export type Tab = 'overview' | 'journeys' | 'updates' | 'account';
-export const tabIds: Tab[] = ['overview', 'journeys', 'updates', 'account'];
+export type Tab =
+  | 'overview'
+  | 'journeys'
+  | 'schedules'
+  | 'updates'
+  | 'account'
+  | 'setup'
+  | 'stop'
+  | 'pass'
+  | 'safety';
+/** Every routable screen; `stop` is opened from a stop name and has no nav entry. */
+export const tabIds: Tab[] = [
+  'overview',
+  'journeys',
+  'schedules',
+  'updates',
+  'account',
+  'setup',
+  'stop',
+  'pass',
+  'safety',
+];
 
-export function workspaceTabs(role: Role): [Tab, IconName, string][] {
-  return [
-    ['overview', 'navigate-outline', role === 'driver' ? 'Drive' : 'Overview'],
-    ['journeys', 'git-branch-outline', 'Journeys'],
-    ['updates', 'notifications-outline', 'Updates'],
-    ['account', 'person-circle-outline', 'Account'],
+export function workspaceTabs(role: Role, { pass = false } = {}): [Tab, IconName, string][] {
+  const overview: [Tab, IconName, string] = [
+    'overview',
+    'navigate-outline',
+    role === 'driver' ? 'Drive' : role === 'student' ? 'Live' : 'Overview',
   ];
+  const schedules: [Tab, IconName, string] = ['schedules', 'calendar-outline', 'Schedules'];
+  const updates: [Tab, IconName, string] = ['updates', 'notifications-outline', 'Alerts'];
+  const account: [Tab, IconName, string] = ['account', 'person-circle-outline', 'Account'];
+  if (role === 'driver')
+    return [overview, ['journeys', 'git-branch-outline', 'Journeys'], updates, account];
+  if (role === 'admin')
+    return [overview, schedules, updates, ['setup', 'construct-outline', 'Setup'], account];
+  if (role === 'student' && pass)
+    return [overview, schedules, ['pass', 'qr-code-outline', 'Pass'], updates, account];
+  return [overview, schedules, updates, account];
 }
 
 interface NavProps {
@@ -31,6 +60,9 @@ export function Sidebar({ tabs, tab, onSelect }: NavProps) {
         {tabs.map(([id, icon, label]) => (
           <Pressable
             key={id}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === id }}
+            aria-selected={tab === id}
             onPress={() => onSelect(id)}
             style={[s.sideLink, tab === id && { backgroundColor: C.navy }]}
           >
@@ -60,6 +92,7 @@ export function BottomNav({ tabs, tab, onSelect }: NavProps) {
           key={id}
           accessibilityRole="tab"
           accessibilityState={{ selected: tab === id }}
+          aria-selected={tab === id}
           onPress={() => onSelect(id)}
           style={{ flex: 1, alignItems: 'center', gap: 5, padding: 9 }}
         >

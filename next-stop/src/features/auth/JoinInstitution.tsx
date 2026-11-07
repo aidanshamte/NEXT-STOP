@@ -94,6 +94,7 @@ export default function JoinInstitution({
                 key={id}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: role === id }}
+                aria-checked={role === id}
                 onPress={() => setRole(id)}
                 style={[
                   j.role,
@@ -147,6 +148,7 @@ export default function JoinInstitution({
                     key={i.id}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: selected === i.id }}
+                    aria-checked={selected === i.id}
                     onPress={() => setSelected(i.id)}
                     style={[j.institution, selected === i.id && { borderColor: C.navy }]}
                   >

@@ -70,6 +70,41 @@ Registration, unverified-password login, and third-party-domain Google login may
 
 Google needs provider client IDs; SMTP needs actual sender credentials. See AUTH-SETUP.md. Old clients using register-with-institution must upgrade to the protocol-3 onboarding flow.
 
+## Rider services (stage 1)
+
+All are institution-scoped (`institutionId` in the body or query) and require an approved membership. "Admin" means the institution's approved administrator.
+
+- `POST /settings` (admin): `timezone` (IANA name), `requestExpiryMinutes` (5–240, default 30).
+- `POST /prefs`: `tripUpdates`, `delayAlerts`, `serviceAlerts` (booleans), `approachStops` (0 = off, 1–3).
+- `POST /favorites`: `kind` (`stop`|`route`), `targetId`, optional `label` (≤40). `POST /favorites/remove`. Confirmed stops and own-institution routes only; 50 per person.
+- `POST /alerts` (admin): `severity` (`info`|`delay`|`interruption`), `title`, `body`, optional `routeId`, `startsAt`, `endsAt`. Delays and interruptions that apply now are pushed to followers of the route and riders on it (or all students and parents for institution-wide alerts) who have service alerts on. `POST /alerts/resolve`.
+- `POST /stops/details` (admin): `stopId`, `name`, `description` (≤500), `accessibility` (≤300), `amenities` (`[{key, detail}]` from `server/catalog.json`). Clears verification. `POST /stops/verify` (admin, confirmed stops only).
+- `POST /stops/photo` (admin): `stopId`, `contentType` (JPEG/PNG/WebP, checked against the bytes), base64 `data` ≤900 KB. `POST /stops/photo/delete`. `GET /stops/photo?stopId=` returns `{contentType,data,updatedAt}` (confirmed stops; admins see drafts).
+- `POST /trips/vehicle` (admin): `tripId`, `capacity` (1–100), `features` (from the catalog).
+- `POST /trips/onboard` (assigned driver or admin, in service): `tripId`, `count` (0–200). Boarded +1 and arrived −1 adjust it automatically.
+- `POST /requests/status` also accepts `reason: 'no_show'` for driver/admin cancellations; requests record `cancel_reason` (`rider`, `driver`, `no_show`, `expired`, `access_removed`). Unaccepted requests are cancelled after the expiry window, checked every minute.
+- `GET /schedule?date=YYYY-MM-DD`: `{configured:false}` until a time zone is set; otherwise the day's periods, closures/notes (next 120 days), raw departures and, per route, departure instants (DST-aware).
+- `POST /schedule/period` (admin): `name`, `startDate`, `endDate`, `days` (7-character Mon–Sun mask), optional `periodId` to edit. `POST /schedule/period/delete`.
+- `POST /schedule/departures` (admin): `routeId`, `periodId`, and `times` (`HH:MM` list) or `from`/`to`/`every` (3–240 min). Replaces that route-period's departures (≤300).
+- `POST /schedule/offsets` (admin): `routeId`, `offsets: [{position, minutes|null}]`, non-decreasing along the route.
+- `POST /schedule/exception` (admin): `date`, `kind` (`closed`|`note`), `note`, optional `routeId`. `POST /schedule/exception/delete`.
+
+Snapshot additions: `settings`, `demand` (waiting counts per stop, no identities), `alerts`, `favorites`, `prefs`, `rideCount`, stop details (`amenities`, verification, `has_photo`), trip `onboard`/`reserved`/`features`, route-stop `offset_minutes`.
+
+## Arrival estimates (stage 2)
+
+Each accepted GPS fix is checked against the next stops on the trip's route (confirmed pins only, 40 m from the path between fixes). Passing a stop records the route position and the stop-to-stop travel time (`segment_times`: route, positions, seconds, time; no coordinates, no driver). Snapshot trips carry `progress` (`position`, `stop_id`, `at`), `estimates` (`[{stop_id, low, mid, high, samples}]`, seconds from `progress.at`, 20th/50th/80th percentiles of the last 50 samples per segment, at least 3) and `reason` when there are none (`no_route`, `no_progress`, `insufficient_history`, `overdue`). Clients hide estimates while GPS is more than 30 s old. Riders with a `requested`/`accepted` pickup are notified once when the shuttle passes a stop 1–3 stops before theirs (their `approachStops` choice).
+
+## Passes, safety, sharing and shared rides (stage 3)
+
+All off until the administrator turns them on with `POST /safety/settings` (`passesEnabled`, `incidentsEnabled`, `escortsEnabled`, `sharedRidesEnabled`, `emergencyNumber`, `escortNote`). `POST /safety/contacts` (admin): `label`, `phone`, `kind`, `hours`, `sms`, or `remove` + `contactId`.
+
+- `POST /pass/issue` (student), `GET /pass/code` → `{qr, code, firstName, expiresAt}`; the six-digit part is an HMAC of a per-pass secret and the 30-second time step. `POST /pass/revoke` (self, or admin with `userId`). `POST /pass/validate` (driver in service, or admin): `code` (QR text or typed `ABCDE-123456`), accepts the current step ±1, locks a pass after 10 wrong codes in 10 minutes, audits every check in `pass_scans` (no codes stored) and returns `{valid, firstName, repeat, request}` or `{valid:false, reason}`.
+- `POST /shares`: `email`, `mode` (`ongoing`, `hours` + `hours` 1–72, or `ride` for the current request only), or `revoke: true`. `POST /shares/stop-all` (student), `POST /shares/leave` (parent, `studentId`). Expired and finished one-ride shares stop applying immediately on reads and are deleted within a minute.
+- `POST /incidents`: `category`, `description` (≤1000), optional `stopId`, `tripId`, and for `shared_ride` a `subjectId` in the reporter's current group. Admins are notified. `POST /incidents/update` (admin): `status` (`acknowledged`|`resolved`), `note`; the reporter is notified.
+- `POST /escorts` (student): `stopId`, `destination`, `note`; one open request. `POST /escorts/update`: admin `accepted`/`declined`/`completed`/`cancelled` with `note`; the rider may cancel their own.
+- `POST /rides/intent` (student): `fromStop`, `toStop`, `leaveAfter`, `leaveBefore` (≤3 h, within a day), `consent: true`; or `clear: true`. `POST /rides/coordinate` (`join`), `POST /rides/block` (`userId`). The snapshot `rides` shows a match count, and first names only of others in the same group.
+
 ## Data retention
 
-The server stores only the latest shuttle position per vehicle, and only while service is active. Ending service clears it. There is no location history table. Request logs record method, path, status and duration only.
+The server stores only the latest shuttle position per vehicle, and only while service is active. Ending service clears it. There is no location history table. Stop-to-stop travel times (no coordinates or identities) are kept 60 days for arrival estimates. Pass checks are kept 90 days, closed escort requests 90 days and resolved reports one year. Account deletion removes favorites, preferences, passes, escort requests, shared-ride entries and blocks, and removes the reporter's identity from reports kept by the institution. Request logs record method, path, status and duration only.

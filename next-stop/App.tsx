@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
+  Pressable,
   ScrollView,
   Text,
   useWindowDimensions,
@@ -20,9 +21,19 @@ import { currentTracking, startDriverGps, stopDriverGps } from './src/services/l
 import { trackingStatus } from './src/services/backgroundLocation';
 import { useLiveSnapshot } from './src/hooks/useLiveSnapshot';
 import { useNow } from './src/hooks/useNow';
+import { useSchedule } from './src/hooks/useSchedule';
 import AuthScreen from './src/features/auth/AuthScreen';
 import JoinInstitution from './src/features/auth/JoinInstitution';
 import AccountPanel from './src/features/account/AccountPanel';
+import Preferences from './src/features/account/Preferences';
+import PassCard from './src/features/pass/PassCard';
+import PassCheck from './src/features/pass/PassCheck';
+import SharedRides from './src/features/rides/SharedRides';
+import SafetyScreen from './src/features/safety/SafetyScreen';
+import { SafetyQueue, SafetySetup } from './src/features/safety/SafetyAdmin';
+import Schedules from './src/features/schedules/Schedules';
+import SetupPanel from './src/features/setup/SetupPanel';
+import StopDetails from './src/features/stops/StopDetails';
 import DispatchPanel from './src/features/dispatch/DispatchPanel';
 import RoutesPanel from './src/features/dispatch/RoutesPanel';
 import type { DispatchDraft } from './src/features/dispatch/DispatchPanel';
@@ -30,7 +41,7 @@ import DriverControls, { DriverUpdateForm } from './src/features/driver/DriverCo
 import RequestList from './src/features/journeys/RequestList';
 import MapCard from './src/features/journeys/MapCard';
 import RiderHome from './src/features/student/RiderHome';
-import ServiceUpdates from './src/features/updates/ServiceUpdates';
+import ServiceUpdates, { AlertBanner } from './src/features/updates/ServiceUpdates';
 import { BottomNav, Sidebar, tabIds, workspaceTabs } from './src/features/workspace/Navigation';
 import type { Tab } from './src/features/workspace/Navigation';
 import Notices from './src/features/workspace/Notices';
@@ -71,9 +82,15 @@ export default function App() {
 function Workspace() {
   const desktop = useWindowDimensions().width > 1000;
   const router = useRouter();
-  const { tab: param } = useLocalSearchParams<{ tab?: string }>();
+  const { tab: param, stop: stopParam } = useLocalSearchParams<{ tab?: string; stop?: string }>();
   const tab: Tab = tabIds.includes(param as Tab) ? (param as Tab) : 'overview';
-  const setTab = (value: Tab) => router.setParams({ tab: value });
+  const setTab = (value: Tab) => router.setParams({ tab: value, stop: undefined });
+  const [returnTab, setReturnTab] = useState<Tab>('overview');
+  const openStop = (id: string) => {
+    if (tab !== 'stop') setReturnTab(tab);
+    router.setParams({ tab: 'stop', stop: id });
+  };
+  const [scheduleDate, setScheduleDate] = useState('');
   const [restoring, setRestoring] = useState(true);
   const [startupError, setStartupError] = useState('');
   const [org, setOrg] = useState('');
@@ -114,6 +131,11 @@ function Workspace() {
     refresh,
   } = useLiveSnapshot(org, !!me, unauthorized, sessionVersion);
   const now = useNow(5000);
+  const {
+    schedule,
+    error: scheduleError,
+    reload: reloadSchedule,
+  } = useSchedule(me && data?.approved ? org : '', tab === 'schedules' ? scheduleDate : '');
   const connection = connectionState({ live, lastSync, syncError }, now);
   const [connectionText, connectionTone] = connectionLabel(connection, lastSync, now);
   const role = data?.role || 'student';
@@ -229,15 +251,17 @@ function Workspace() {
     };
   }, [me, org, trip?.id]);
   async function run(action: () => Promise<void>, key = '') {
-    if (busy) return;
+    if (busy) return false;
     setBusy(true);
     setPending(key);
     setError('');
     setMessage('');
     try {
       await action();
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     } finally {
       setBusy(false);
       setPending('');
@@ -305,6 +329,8 @@ function Workspace() {
       setPickup('');
       setDestination('');
       setTripId('');
+      setScheduleDate('');
+      setTab('overview');
     });
   }
   async function changeTrip(id: string) {
@@ -315,7 +341,7 @@ function Workspace() {
     });
   }
   async function mutate(path: string, body: object, success: string) {
-    await run(
+    return run(
       async () => {
         await api(path, { institutionId: org, ...body });
         if (path === '/trips/service' && (body as { active?: boolean }).active === false) {
@@ -385,7 +411,7 @@ function Workspace() {
     );
   if (!me.memberships.length)
     return <JoinInstitution name={me.user.name} onJoined={joined} onSignOut={signOut} />;
-  const tabs = workspaceTabs(role);
+  const tabs = workspaceTabs(role, { pass: !!data?.safety?.passes_enabled });
   const trips = data?.trips || [];
   const stops = data?.stops || [];
   const shuttleSelector = (
@@ -409,8 +435,19 @@ function Workspace() {
     />
   );
   const route = data?.routes?.find((r) => r.id === trip?.route_id);
+  const lastClosed = data?.requests
+    .filter((r) => !isOpen(r.status))
+    .sort((a, b) => (b.updated_at || b.created_at) - (a.updated_at || a.created_at))[0];
+  // Current dispatch alerts for every route, or for the route of the shuttle on screen.
+  const liveAlerts = (data?.alerts || []).filter(
+    (a) => a.starts_at <= now && (!a.route_id || a.route_id === trip?.route_id),
+  );
+  const alertBanners = liveAlerts.map((a) => (
+    <AlertBanner key={a.id} alert={a} routes={data?.routes || []} />
+  ));
   const mapCard = (
     <MapCard
+      onOpenStop={openStop}
       stops={stops}
       trip={trip}
       route={route}
@@ -426,24 +463,33 @@ function Workspace() {
   );
   const overview =
     role === 'student' ? (
-      <RiderHome
-        stops={stops}
-        routes={data?.routes || []}
-        routeStops={data?.routeStops || []}
-        trips={trips}
-        trip={trip}
-        request={request}
-        shuttleSelector={shuttleSelector}
-        pickup={pickup}
-        setPickup={setPickup}
-        destination={destination}
-        setDestination={setDestination}
-        stopName={stopName}
-        busy={busy}
-        pending={pending}
-        mutate={mutate}
-        now={now}
-      />
+      <>
+        {alertBanners}
+        <RiderHome
+          demand={data?.demand}
+          favorites={data?.favorites}
+          expiryMinutes={data?.settings?.request_expiry_minutes}
+          lastClosed={lastClosed}
+          onOpenStop={openStop}
+          stops={stops}
+          routes={data?.routes || []}
+          routeStops={data?.routeStops || []}
+          trips={trips}
+          trip={trip}
+          request={request}
+          shuttleSelector={shuttleSelector}
+          pickup={pickup}
+          setPickup={setPickup}
+          destination={destination}
+          setDestination={setDestination}
+          stopName={stopName}
+          busy={busy}
+          pending={pending}
+          mutate={mutate}
+          now={now}
+        />
+        {data && <SharedRides data={data} busy={busy} mutate={mutate} now={now} />}
+      </>
     ) : role === 'driver' ? (
       <>
         <DriverControls
@@ -458,6 +504,9 @@ function Workspace() {
           mutate={mutate}
           now={now}
         />
+        {!!data?.safety?.passes_enabled && !!trip?.active && (
+          <PassCheck org={org} busy={busy} mutate={mutate} />
+        )}
         {requestList}
         {trip && (
           <DriverUpdateForm
@@ -475,33 +524,14 @@ function Workspace() {
       </>
     ) : role === 'admin' ? (
       <>
+        {alertBanners}
         {trips.length > 1 && shuttleSelector}
         {mapCard}
         {requestList}
-        <DispatchPanel
-          members={data?.members || []}
-          trips={trips}
-          selfId={me.user.id}
-          stopCount={stops.length}
-          tripCount={trips.length}
-          draft={dispatchDraft}
-          setDraft={updateDispatchDraft}
-          busy={busy}
-          run={run}
-          mutate={mutate}
-        />
-        <RoutesPanel
-          routes={data?.routes || []}
-          routeStops={data?.routeStops || []}
-          stops={stops}
-          trips={trips}
-          busy={busy}
-          run={run}
-          mutate={mutate}
-        />
       </>
     ) : (
       <>
+        {alertBanners}
         {requestList}
         {trips.length > 1 && shuttleSelector}
         {mapCard}
@@ -511,6 +541,33 @@ function Workspace() {
         </Text>
       </>
     );
+  const setup = data ? (
+    <>
+      <SetupPanel data={data} busy={busy} mutate={mutate} onOpenStop={openStop} />
+      <SafetySetup data={data} busy={busy} mutate={mutate} />
+      <DispatchPanel
+        members={data?.members || []}
+        trips={trips}
+        selfId={me.user.id}
+        stopCount={stops.length}
+        tripCount={trips.length}
+        draft={dispatchDraft}
+        setDraft={updateDispatchDraft}
+        busy={busy}
+        run={run}
+        mutate={mutate}
+      />
+      <RoutesPanel
+        routes={data?.routes || []}
+        routeStops={data?.routeStops || []}
+        stops={stops}
+        trips={trips}
+        busy={busy}
+        run={run}
+        mutate={mutate}
+      />
+    </>
+  ) : null;
   return (
     <SafeAreaView style={s.safe}>
       <StatusBar style="dark" />
@@ -536,9 +593,42 @@ function Workspace() {
                 </Text>
                 <StatusChip text={connectionText} tone={connectionTone} />
               </View>
-              <Text style={[s.eyebrow, { alignSelf: 'flex-start', marginTop: 4 }]}>
-                {roleLabels[role].toUpperCase()}
-              </Text>
+              <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                <Text style={[s.eyebrow, { marginTop: 4 }]}>{roleLabels[role].toUpperCase()}</Text>
+                {!!data?.approved && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Safety and reporting"
+                    onPress={() => setTab('safety')}
+                    style={({ pressed }) => [
+                      s.row,
+                      {
+                        gap: 4,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 999,
+                        backgroundColor: tab === 'safety' ? C.navy : '#EEF2F5',
+                        opacity: pressed ? 0.8 : 1,
+                      },
+                    ]}
+                  >
+                    <Icon
+                      name="shield-checkmark-outline"
+                      size={16}
+                      color={tab === 'safety' ? 'white' : C.navy}
+                    />
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: '700',
+                        color: tab === 'safety' ? 'white' : C.navy,
+                      }}
+                    >
+                      Safety
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
             {institutionsVisible.length > 1 && (
               <InstitutionChooser
@@ -593,29 +683,105 @@ function Workspace() {
                 </Text>
                 <Button label="Sign out" secondary onPress={signOut} disabled={busy} />
               </Card>
-            ) : tab === 'account' ? (
-              <AccountPanel
-                me={me}
+            ) : tab === 'stop' && stopParam ? (
+              <StopDetails
+                org={org}
+                stopId={stopParam}
+                data={data}
                 role={role}
+                schedule={schedule}
+                busy={busy}
+                pending={pending}
+                mutate={mutate}
+                onBack={() => setTab(returnTab)}
+                onRequestHere={
+                  request
+                    ? undefined
+                    : (id) => {
+                        setPickup(id);
+                        if (destination === id) setDestination('');
+                        setTab('overview');
+                      }
+                }
+                now={now}
+              />
+            ) : tab === 'schedules' ? (
+              <Schedules
+                data={data}
+                role={role}
+                schedule={schedule}
+                date={scheduleDate}
+                setDate={setScheduleDate}
+                error={scheduleError}
+                reload={reloadSchedule}
+                busy={busy}
+                pending={pending}
+                mutate={mutate}
+                onOpenStop={openStop}
+                now={now}
+              />
+            ) : tab === 'pass' && role === 'student' ? (
+              <PassCard
+                org={org}
+                data={data}
                 institutionName={institution?.name}
-                shares={data.shares}
-                shareEmail={shareEmail}
-                setShareEmail={setShareEmail}
                 busy={busy}
                 mutate={mutate}
-                onGoogleLinked={async () => {
-                  setMe(await api<Me>('/me'));
-                  setMessage('Google account connected.');
-                }}
-                onSignOut={signOut}
-                onDeleteAccount={deleteAccount}
-                pushState={pushState}
-                onEnablePush={() => void turnOnNotifications()}
+                now={now}
               />
+            ) : tab === 'safety' ? (
+              <SafetyScreen data={data} role={role} busy={busy} mutate={mutate} now={now} />
+            ) : tab === 'setup' && role === 'admin' ? (
+              setup
+            ) : tab === 'account' ? (
+              <>
+                <AccountPanel
+                  me={me}
+                  role={role}
+                  institutionName={institution?.name}
+                  shares={data.shares}
+                  shareEmail={shareEmail}
+                  setShareEmail={setShareEmail}
+                  busy={busy}
+                  mutate={mutate}
+                  onGoogleLinked={async () => {
+                    setMe(await api<Me>('/me'));
+                    setMessage('Google account connected.');
+                  }}
+                  onSignOut={signOut}
+                  onDeleteAccount={deleteAccount}
+                  pushState={pushState}
+                  onEnablePush={() => void turnOnNotifications()}
+                  sharedWithMe={data.sharedWithMe}
+                  hasOpenRequest={!!request}
+                />
+                <Preferences
+                  data={data}
+                  role={role}
+                  busy={busy}
+                  mutate={mutate}
+                  onOpenStop={openStop}
+                />
+                {role === 'student' && requestList}
+              </>
             ) : tab === 'journeys' ? (
               requestList
             ) : tab === 'updates' ? (
-              <ServiceUpdates trips={data.trips} />
+              <>
+                {role === 'admin' && (
+                  <SafetyQueue data={data} busy={busy} mutate={mutate} now={now} />
+                )}
+                <ServiceUpdates
+                  trips={data.trips}
+                  alerts={data.alerts}
+                  routes={data.routes}
+                  role={role}
+                  busy={busy}
+                  pending={pending}
+                  mutate={mutate}
+                  now={now}
+                />
+              </>
             ) : (
               overview
             )}

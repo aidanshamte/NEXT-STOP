@@ -1,0 +1,29 @@
+{
+  "amenities": {
+    "shelter": "Covered shelter",
+    "seating": "Seating",
+    "lighting": "Lighting after dark",
+    "step_free": "Step-free boarding",
+    "tactile_paving": "Tactile paving",
+    "curb_ramp": "Curb ramp",
+    "bike_parking": "Bike parking",
+    "display": "Arrival display",
+    "emergency_phone": "Emergency call box",
+    "restroom_nearby": "Restroom nearby",
+    "indoor_waiting": "Indoor waiting area"
+  },
+  "vehicleFeatures": {
+    "ramp": "Wheelchair ramp",
+    "lift": "Wheelchair lift",
+    "priority_seating": "Priority seating",
+    "bike_rack": "Bike rack",
+    "luggage": "Luggage space"
+  },
+  "cancelReasons": {
+    "rider": "Cancelled by the rider",
+    "driver": "Cancelled by the driver",
+    "no_show": "Rider not at the stop",
+    "expired": "Not accepted in time",
+    "access_removed": "Institution access removed"
+  }
+}

@@ -87,7 +87,10 @@ test('Caddy isolates the map frame and lets only the app page embed it', () => {
   const map = caddy.match(/header @mapframe \{\s*Content-Security-Policy "([^"]+)"/)[1];
   assert.match(map, /default-src 'none'/);
   // blob: lets the map's own worker wrapper load MapLibre's worker code (see mapHtml.ts).
-  assert.match(map, /script-src 'unsafe-inline' https:\/\/unpkg\.com\/maplibre-gl@4\.7\.1\/ blob:;/);
+  assert.match(
+    map,
+    /script-src 'unsafe-inline' https:\/\/unpkg\.com\/maplibre-gl@4\.7\.1\/ blob:;/,
+  );
   assert.match(map, /connect-src https:\/\/tiles\.openfreemap\.org;/);
   assert.match(map, /frame-ancestors https:\/\/\{host\}/);
   const app = caddy.match(/header @appdoc \{\s*Content-Security-Policy "([^"]+)"/)[1];

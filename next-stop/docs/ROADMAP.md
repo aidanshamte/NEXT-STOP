@@ -1,6 +1,6 @@
 # NEXT STOP implementation checklist
 
-The living task list. Update it in the same commit as the work. Mark an item `[x]` only with evidence (a test, or a recorded device/provider result in VALIDATION.md). Last updated: 2026-11-05.
+The living task list. Update it in the same commit as the work. Mark an item `[x]` only with evidence (a test, or a recorded device/provider result in VALIDATION.md). Last updated: 2026-11-07.
 
 ## Milestone 1: real pickup + real GPS between two installed phones via Azure
 
@@ -51,22 +51,38 @@ To re-import after the sign changes: edit `server/imports/fairfield-university-s
 
 ## Milestone 2: rider experience and notifications
 
-- [ ] "Approaching" status that the driver sets explicitly (no inferred ETA). Students see driver-set states only
-- [ ] Push notifications through Expo Push Service (APNs/FCM) for accepted/approaching/boarded/arrived/delay; store device tokens per session; delete them on sign-out and account deletion; durable outbox with receipt checks. Never claim guaranteed delivery
-- [ ] Rider-visible capacity ("seats available"), computed from accepted + boarded counts
-- [ ] Service alerts managed by admins; driver issue reports flow into them
+- [x] "Approaching" status that the driver sets explicitly (`push.test.mjs`)
+- [x] Push notifications through Expo Push Service with receipt checks and token cleanup (`push.test.mjs`). Delivery to real phones still needs the Android FCM key and device tests
+- [x] Rider-visible capacity: driver-confirmed onboard count (boarded/arrived events, driver correction) plus accepted pickups, labelled as an estimate (`service.test.mjs`, FEATURES.md 1.6–1.8)
+- [x] Service alerts managed by admins (per route or institution), pushed by preference; driver delay reports alongside (`service.test.mjs`)
+- [x] Notification preferences per institution, followed routes, saved stops (`service.test.mjs`)
 - [ ] Driver one-tap UI review: large targets, minimal typing while in service
 - [ ] Session management screen (list and revoke devices); change password while signed in
-- [ ] Request timeout / no-show handling with reasons
+- [x] Request timeout / no-show handling with reasons (`service.test.mjs`; live expiry seen in the browser, VALIDATION 2e)
+- [x] Arrival estimates from stop-passage travel-time history, with ranges and "unavailable" states (`eta.test.mjs`, `client-logic.test.mjs`). Accuracy on real Fairfield service is not yet measured: it needs confirmed stop pins, assigned routes and several days of service
+- [x] Stop-approach notifications 1–3 stops before the rider's stop (`eta.test.mjs`)
 
 ## Milestone 3: institution operations
 
-- [ ] Routes (ordered stops), service schedules and operating hours; edit/archive stops
-- [ ] Vehicles separate from trips (vehicle registry, capacity per vehicle)
+- [x] Routes (ordered stops); institution timetables: service periods, departures, stop times, closures and notes, time zone (`service.test.mjs`)
+- [x] Stop details: description, accessibility, amenities, photo, administrator verification (`service.test.mjs`)
+- [ ] Archive stops; enter Fairfield's real timetable (needs the published schedule from the institution)
+- [x] Capacity and features per vehicle (`service.test.mjs`). A separate vehicle registry is still open
 - [ ] Institution invitation codes or verified email domains for faster, still admin-controlled, approval
 - [ ] Demand review: requests by stop and time; service activity history with a defined retention period
 - [ ] Audit log of admin actions (approvals, revocations, assignments)
 - [ ] Optional ETA through a documented provider (for example Azure Maps Route), shown with uncertainty and with cost noted
+
+## Milestone 4: passes, safety and coordination (all off by default per institution)
+
+- [x] Rotating QR rider pass and driver/dispatch validation with audit and guessing limits (`safety.test.mjs`)
+- [ ] NFC tap and Apple/Google Wallet passes: need an Apple Pass Type ID certificate, a Google Wallet issuer account and, for NFC, Apple's NFC pass entitlement and compatible readers on vehicles
+- [x] Journey sharing for one ride or a set time; student stop-all; parent can leave (`safety.test.mjs`)
+- [x] Institution safety contacts and emergency number (tap to call; nothing sent through NEXT STOP)
+- [x] In-app reports and escort requests answered by staff in NEXT STOP (`safety.test.mjs`); turn on only when staff will monitor them
+- [x] Opt-in shared-ride coordination with first names only, reports and blocking (`safety.test.mjs`); no provider booking or prices
+- [ ] Institution SSO (OIDC/SAML): needs the institution's identity provider registration (issuer, client ID, approved redirect URIs)
+- [ ] Payments: not applicable while shuttles are free; needs a fare policy and a payment provider account before any work
 
 ## Scaling path (only when needed)
 

@@ -33,7 +33,7 @@ test('notifications reach exactly the authorized people for each journey event',
       return Object.fromEntries(
         ids.map((id) => [
           id,
-          id === 'ticket-1'
+          id === 'ticket-2'
             ? { status: 'error', details: { error: 'DeviceNotRegistered' } }
             : { status: 'ok' },
         ]),
@@ -134,6 +134,9 @@ test('notifications reach exactly the authorized people for each journey event',
   let requestId;
   await t.test('a new request notifies only the assigned driver', async () => {
     await act('/shares', 'northbridge-student', { email: 'northbridge-parent@example.com' });
+    await tick();
+    // Starting to share tells the parent; nobody else hears about it.
+    assert.deepEqual(recipients(), [deviceOf('northbridge-parent')]);
     const r = await act('/requests', 'northbridge-student', {
       tripId: 'bus',
       stopId: 'northbridge-0',
@@ -232,7 +235,8 @@ test('notifications reach exactly the authorized people for each journey event',
         .get(deviceOf('northbridge-student')).n,
       0,
     );
-    // ticket-1 went to the driver; its receipt reports the device as unregistered.
+    // ticket-2 went to the driver (ticket-1 told the parent about sharing); its receipt
+    // reports the device as unregistered.
     now += 16 * 60000;
     await app.push.checkReceipts();
     assert.equal(

@@ -6,6 +6,9 @@ import { tokenHash, verifyPassword } from './security.mjs';
 import { createAuth } from './auth.mjs';
 import { createPush, createExpoTransport, EXPO_TOKEN } from './push.mjs';
 import { OPEN_STATUSES } from './db.mjs';
+import { createService } from './service.mjs';
+import { createEta } from './eta.mjs';
+import { createSafety } from './safety.mjs';
 
 const OPEN_SQL = OPEN_STATUSES.map((v) => `'${v}'`).join(',');
 const firstName = (name) =>
@@ -58,8 +61,10 @@ export function createApp({
   const riderAudience = (request) => {
     const student = db.prepare('SELECT name FROM users WHERE id=?').get(request.student_id);
     const parents = db
-      .prepare('SELECT parent_id FROM shares WHERE student_id=? AND institution_id=?')
-      .all(request.student_id, request.institution_id)
+      .prepare(
+        'SELECT parent_id FROM shares s WHERE student_id=? AND institution_id=? AND (s.expires_at IS NULL OR s.expires_at>?) AND (s.request_id IS NULL OR s.request_id=?)',
+      )
+      .all(request.student_id, request.institution_id, clock(), request.id)
       .map((r) => r.parent_id);
     return { studentName: firstName(student?.name), parents };
   };
@@ -79,6 +84,7 @@ export function createApp({
   const maintenance = setInterval(() => {
     try {
       pruneExpired(db, clock());
+      safety.prune(clock());
       const now = clock();
       for (const [key, value] of sessionRates)
         if (now - value.start > 60000) sessionRates.delete(key);
@@ -90,6 +96,26 @@ export function createApp({
   const fail = (status, message) => {
     throw Object.assign(new Error(message), { status });
   };
+  const service = createService({ db, push, clock, fail });
+  const eta = createEta({ db, clock });
+  const safety = createSafety({ db, push, clock, fail, audience: service.audience });
+  // Ends shares whose time limit passed or whose single ride is over.
+  const endShares = () =>
+    db
+      .prepare(
+        "DELETE FROM shares WHERE (expires_at IS NOT NULL AND expires_at<=?) OR (request_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM requests r WHERE r.id=shares.request_id AND r.status IN ('requested','accepted','approaching','boarded')))",
+      )
+      .run(clock()).changes;
+  // Pickup requests nobody accepted in time are cancelled, and riders are told.
+  const expiryTimer = setInterval(() => {
+    try {
+      for (const org of service.expireRequests()) realtime.invalidate(org);
+      endShares();
+    } catch (error) {
+      log?.({ level: 'error', event: 'expiry_failed', message: error.message });
+    }
+  }, 60000);
+  expiryTimer.unref();
   const membership = (uid, org) =>
     db.prepare('SELECT * FROM memberships WHERE user_id=? AND institution_id=?').get(uid, org);
   const server = createServer(async (req, res) => {
@@ -136,7 +162,9 @@ export function createApp({
         let data = '';
         for await (const chunk of req) {
           data += chunk;
-          if (Buffer.byteLength(data) > 16384) fail(413, 'Request too large.');
+          // Stop photos are the only large uploads (900 KB as base64 plus the envelope).
+          if (Buffer.byteLength(data) > (path === '/stops/photo' ? 1300000 : 16384))
+            fail(413, 'Request too large.');
         }
         try {
           body = JSON.parse(data || '{}');
@@ -260,6 +288,8 @@ export function createApp({
           db.prepare('DELETE FROM sessions WHERE user_id=?').run(uid);
           db.prepare('DELETE FROM push_tokens WHERE user_id=?').run(uid);
           db.prepare('DELETE FROM shares WHERE student_id=? OR parent_id=?').run(uid, uid);
+          service.forget(uid);
+          safety.forget(uid);
           // Ride history is personal data: removed with the account, not anonymised.
           db.prepare('DELETE FROM requests WHERE student_id=?').run(uid);
           db.prepare('UPDATE trips SET driver_id=NULL WHERE driver_id=?').run(uid);
@@ -317,11 +347,14 @@ export function createApp({
             members: [],
             routes: [],
             routeStops: [],
+            demand: [],
+            alerts: [],
+            favorites: [],
           });
         // Draft stops (no confirmed boarding point) are visible to administrators only.
         const stops = db
           .prepare(
-            `SELECT id,institution_id,name,lat,lng,position,status,note FROM stops WHERE institution_id=? ${member.role === 'admin' ? '' : "AND status='confirmed'"} ORDER BY position`,
+            `SELECT id,institution_id,name,lat,lng,position,status,note,description,accessibility,amenities,details_verified_at,details_verified_by FROM stops WHERE institution_id=? ${member.role === 'admin' ? '' : "AND status='confirmed'"} ORDER BY position`,
           )
           .all(org);
         const routes = db
@@ -332,15 +365,24 @@ export function createApp({
         const visibleStop = new Set(stops.map((stop) => stop.id));
         const routeStops = db
           .prepare(
-            'SELECT rs.route_id,rs.position,rs.stop_id,rs.on_demand FROM route_stops rs JOIN routes r ON r.id=rs.route_id WHERE r.institution_id=? ORDER BY rs.route_id,rs.position',
+            'SELECT rs.route_id,rs.position,rs.stop_id,rs.on_demand,rs.offset_minutes FROM route_stops rs JOIN routes r ON r.id=rs.route_id WHERE r.institution_id=? ORDER BY rs.route_id,rs.position',
           )
           .all(org)
           .filter((entry) => visibleStop.has(entry.stop_id));
         let trips = db
           .prepare(
-            'SELECT id,institution_id,driver_id,route_id,name,capacity,active,lat,lng,accuracy,updated_at,delay_minutes,issue FROM trips WHERE institution_id=?',
+            "SELECT id,institution_id,driver_id,route_id,name,capacity,active,lat,lng,accuracy,updated_at,delay_minutes,issue,onboard,onboard_updated_at,onboard_source,features,progress_position,progress_at,progress_route_id,(SELECT count(*) FROM requests r WHERE r.trip_id=trips.id AND r.status IN ('accepted','approaching')) AS reserved FROM trips WHERE institution_id=?",
           )
-          .all(org);
+          .all(org)
+          .map((t) => {
+            const { progress_position, progress_at, progress_route_id, ...rest } = t;
+            return {
+              ...rest,
+              features: JSON.parse(t.features || '[]'),
+              // Arrival estimates from this route's travel-time history (see eta.mjs).
+              ...eta.estimates(t),
+            };
+          });
         let requests;
         if (member.role === 'admin')
           requests = db
@@ -358,9 +400,9 @@ export function createApp({
         } else if (member.role === 'parent') {
           requests = db
             .prepare(
-              'SELECT r.*,u.name AS student_name FROM requests r JOIN shares s ON s.student_id=r.student_id AND s.institution_id=r.institution_id JOIN users u ON u.id=r.student_id WHERE r.institution_id=? AND s.parent_id=?',
+              'SELECT r.*,u.name AS student_name FROM requests r JOIN shares s ON s.student_id=r.student_id AND s.institution_id=r.institution_id JOIN users u ON u.id=r.student_id WHERE r.institution_id=? AND s.parent_id=? AND (s.expires_at IS NULL OR s.expires_at>?) AND (s.request_id IS NULL OR s.request_id=r.id)',
             )
-            .all(org, uid);
+            .all(org, uid, clock());
           trips = trips.filter((t) =>
             requests.some(
               (r) =>
@@ -375,9 +417,19 @@ export function createApp({
             .all(org, uid);
         const shares = db
           .prepare(
-            'SELECT s.student_id,s.parent_id,u.name,u.email FROM shares s JOIN users u ON u.id=s.parent_id WHERE s.institution_id=? AND s.student_id=?',
+            'SELECT s.student_id,s.parent_id,u.name,u.email,s.created_at,s.expires_at,s.request_id FROM shares s JOIN users u ON u.id=s.parent_id WHERE s.institution_id=? AND s.student_id=? AND (s.expires_at IS NULL OR s.expires_at>?)',
           )
-          .all(org, uid);
+          .all(org, uid, clock());
+        // A parent sees who shares with them and on what terms (first names only).
+        const sharedWithMe =
+          member.role === 'parent'
+            ? db
+                .prepare(
+                  'SELECT s.student_id,u.name,s.created_at,s.expires_at,s.request_id FROM shares s JOIN users u ON u.id=s.student_id WHERE s.institution_id=? AND s.parent_id=? AND (s.expires_at IS NULL OR s.expires_at>?)',
+                )
+                .all(org, uid, clock())
+                .map((r) => ({ ...r, name: firstName(r.name) }))
+            : [];
         const members =
           member.role === 'admin'
             ? db
@@ -391,16 +443,22 @@ export function createApp({
           memberships,
           role: member.role,
           approved: true,
-          stops,
+          stops: service.decorateStops(stops),
           trips,
           requests,
           shares,
           members,
           routes,
           routeStops,
+          ...service.snapshotExtras({ member, org, uid }),
+          ...safety.snapshotExtras({ member, org, uid }),
+          sharedWithMe,
         });
       }
       if (!member.approved) fail(403, 'Membership is awaiting institution approval.');
+      const context = { path, method: req.method, body, url, uid, member, org, send, text };
+      if (await service.handle(context)) return;
+      if (await safety.handle(context)) return;
       if (req.method !== 'POST') fail(404, 'Endpoint not found.');
       if (path === '/stops') {
         if (member.role !== 'admin') fail(403, 'Admin access required.');
@@ -460,6 +518,7 @@ export function createApp({
             fail(400, 'Choose a route in this institution.');
         }
         db.prepare('UPDATE trips SET route_id=? WHERE id=?').run(routeId, trip.id);
+        eta.reset(trip.id);
         return send(200, { ok: true });
       }
       if (path === '/trips') {
@@ -560,20 +619,28 @@ export function createApp({
           };
           // Validated against the stored state, so a second conflicting action gets 409.
           if (!transitions[row.status]?.includes(next)) fail(409, 'Invalid request transition.');
-          if (next === 'accepted' || next === 'boarded') {
-            const occupied = db
-              .prepare(
-                "SELECT count(*) AS n FROM requests WHERE trip_id=? AND status IN ('accepted','approaching','boarded') AND id<>?",
-              )
-              .get(trip.id, row.id).n;
-            if (occupied >= trip.capacity) fail(409, 'Shuttle capacity reached.');
-          }
+          // Seats: riders on board (driver-confirmed, correctable) plus accepted pickups.
+          const { reserved, onboard } = service.seatsCommitted(trip, row.id);
+          if (next === 'accepted' && reserved + onboard >= trip.capacity)
+            fail(409, 'Shuttle capacity reached.');
+          if (next === 'boarded' && onboard >= trip.capacity)
+            fail(409, 'Shuttle capacity reached. If the onboard count is wrong, correct it first.');
         }
-        db.prepare('UPDATE requests SET status=?,updated_at=? WHERE id=?').run(
+        const reason =
+          next !== 'cancelled'
+            ? null
+            : member.role === 'student'
+              ? 'rider'
+              : body.reason === 'no_show'
+                ? 'no_show'
+                : 'driver';
+        db.prepare('UPDATE requests SET status=?,updated_at=?,cancel_reason=? WHERE id=?').run(
           next,
           clock(),
+          reason,
           row.id,
         );
+        service.onStatusChange(trip, row.status, next);
         if (member.role === 'student') {
           if (trip.driver_id)
             push.notify([
@@ -593,13 +660,13 @@ export function createApp({
           const { studentName, parents } = riderAudience(row);
           push.notify([
             {
-              userIds: [row.student_id],
+              userIds: service.audience([row.student_id], org, 'trip_updates'),
               title,
               body: text,
               data: { type: 'status', institutionId: org },
             },
             {
-              userIds: parents,
+              userIds: service.audience(parents, org, 'trip_updates'),
               title: `${studentName}: ${title.toLowerCase()}`,
               body: text.replace('your pickup', `${studentName}'s pickup`),
               data: { type: 'status', institutionId: org },
@@ -636,10 +703,14 @@ export function createApp({
           )
             fail(409, 'Resolve active pickup requests and onboard riders before ending service.');
           // Location is kept only while in service; ending service discards the last fix.
-          if (body.active) db.prepare('UPDATE trips SET active=1 WHERE id=?').run(trip.id);
+          // The onboard count starts from zero each service.
+          if (body.active)
+            db.prepare(
+              "UPDATE trips SET active=1,onboard=0,onboard_updated_at=NULL,onboard_source='events',progress_position=NULL,progress_at=NULL,progress_route_id=NULL WHERE id=? AND active=0",
+            ).run(trip.id);
           else
             db.prepare(
-              "UPDATE trips SET active=0,lat=NULL,lng=NULL,accuracy=NULL,updated_at=NULL,delay_minutes=0,issue='' WHERE id=?",
+              "UPDATE trips SET active=0,progress_position=NULL,progress_at=NULL,progress_route_id=NULL,lat=NULL,lng=NULL,accuracy=NULL,updated_at=NULL,delay_minutes=0,issue='',onboard=0,onboard_updated_at=NULL WHERE id=?",
             ).run(trip.id);
         } else if (path === '/trips/location') {
           if (!trip.active) fail(409, 'Start service first.');
@@ -669,6 +740,9 @@ export function createApp({
             capturedAt,
             trip.id,
           );
+          // Stop passage at confirmed pins: progress, travel-time history, approach alerts.
+          const passed = eta.onFix(trip, { lat, lng, accuracy, capturedAt });
+          if (passed) service.approach(trip, passed, eta);
         } else if (path === '/trips/issue') {
           if (
             !Number.isInteger(body.delayMinutes) ||
@@ -700,13 +774,13 @@ export function createApp({
                 const { studentName, parents } = riderAudience(r);
                 return [
                   {
-                    userIds: [r.student_id],
+                    userIds: service.audience([r.student_id], org, 'delay_alerts'),
                     title: `Service update: ${trip.name}`,
                     body: detail,
                     data: { type: 'issue', institutionId: org },
                   },
                   {
-                    userIds: parents,
+                    userIds: service.audience(parents, org, 'delay_alerts'),
                     title: `${studentName}'s shuttle: service update`,
                     body: detail,
                     data: { type: 'issue', institutionId: org },
@@ -727,11 +801,60 @@ export function createApp({
           )
           .get(email, org);
         if (!parent) fail(404, 'No approved parent account found in your institution.');
-        if (body.revoke === true)
+        if (body.revoke === true) {
           db.prepare(
             'DELETE FROM shares WHERE student_id=? AND parent_id=? AND institution_id=?',
           ).run(uid, parent.id, org);
-        else db.prepare('INSERT OR IGNORE INTO shares VALUES (?,?,?)').run(uid, parent.id, org);
+          return send(200, { ok: true });
+        }
+        // Ongoing (until revoked), for a set number of hours, or for the current ride only.
+        const mode = body.mode ?? 'ongoing';
+        let expiresAt = null,
+          requestId = null;
+        if (mode === 'hours') {
+          if (!Number.isInteger(body.hours) || body.hours < 1 || body.hours > 72)
+            fail(400, 'Share for 1 to 72 hours.');
+          expiresAt = clock() + body.hours * 3600000;
+        } else if (mode === 'ride') {
+          const open = db
+            .prepare(
+              `SELECT id FROM requests WHERE student_id=? AND institution_id=? AND status IN (${OPEN_SQL})`,
+            )
+            .get(uid, org);
+          if (!open) fail(409, 'Request a pickup first, then share that ride.');
+          requestId = open.id;
+          expiresAt = clock() + 12 * 3600000;
+        } else if (mode !== 'ongoing') fail(400, 'Choose how long to share.');
+        db.prepare(
+          'INSERT OR REPLACE INTO shares(student_id,parent_id,institution_id,created_at,expires_at,request_id) VALUES (?,?,?,?,?,?)',
+        ).run(uid, parent.id, org, clock(), expiresAt, requestId);
+        const student = db.prepare('SELECT name FROM users WHERE id=?').get(uid);
+        push.notify([
+          {
+            userIds: service.audience([parent.id], org, 'trip_updates'),
+            title: `${firstName(student?.name)} is sharing journeys with you`,
+            body:
+              mode === 'ride'
+                ? 'For their current ride only.'
+                : mode === 'hours'
+                  ? `For the next ${body.hours} hour${body.hours === 1 ? '' : 's'}.`
+                  : 'Until they stop sharing.',
+            data: { type: 'share', institutionId: org },
+          },
+        ]);
+        return send(200, { ok: true });
+      }
+      if (path === '/shares/stop-all') {
+        if (member.role !== 'student') fail(403, 'Only the student can manage sharing.');
+        db.prepare('DELETE FROM shares WHERE student_id=? AND institution_id=?').run(uid, org);
+        return send(200, { ok: true });
+      }
+      if (path === '/shares/leave') {
+        // A parent can stop following a student at any time.
+        if (member.role !== 'parent') fail(403, 'Only a parent can leave a share.');
+        db.prepare(
+          'DELETE FROM shares WHERE student_id=? AND parent_id=? AND institution_id=?',
+        ).run(text('studentId'), uid, org);
         return send(200, { ok: true });
       }
       if (path === '/members/approve') {
@@ -762,8 +885,10 @@ export function createApp({
         try {
           // Pending pickups end. Riders already on board keep their record so they can be dropped off.
           db.prepare(
-            "UPDATE requests SET status='cancelled' WHERE student_id=? AND institution_id=? AND status IN ('requested','accepted','approaching')",
-          ).run(target, org);
+            "UPDATE requests SET status='cancelled',cancel_reason='access_removed',updated_at=? WHERE student_id=? AND institution_id=? AND status IN ('requested','accepted','approaching')",
+          ).run(clock(), target, org);
+          service.forget(target, org);
+          safety.forget(target, org);
           db.prepare(
             'DELETE FROM shares WHERE institution_id=? AND (student_id=? OR parent_id=?)',
           ).run(org, target, target);
@@ -799,6 +924,7 @@ export function createApp({
   server.on('close', () => {
     clearInterval(maintenance);
     clearInterval(receiptTimer);
+    clearInterval(expiryTimer);
   });
-  return { server, db, realtime, push };
+  return { server, db, realtime, push, service, eta, safety };
 }

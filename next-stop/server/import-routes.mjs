@@ -112,11 +112,24 @@ export function importRoutes(db, institutionId, plan, { dryRun = false } = {}) {
         );
         summary.routesUpdated++;
       }
+      // Timetable offsets entered by administrators survive where a position keeps its stop.
+      const kept = new Map(
+        db
+          .prepare('SELECT position,stop_id,offset_minutes FROM route_stops WHERE route_id=?')
+          .all(row.id)
+          .map((r) => [`${r.position}|${r.stop_id}`, r.offset_minutes]),
+      );
       db.prepare('DELETE FROM route_stops WHERE route_id=?').run(row.id);
       route.stops.forEach((entry, i) => {
         db.prepare(
-          'INSERT INTO route_stops(route_id,position,stop_id,on_demand) VALUES (?,?,?,?)',
-        ).run(row.id, i, stopIds[entry.stop], entry.onDemand ? 1 : 0);
+          'INSERT INTO route_stops(route_id,position,stop_id,on_demand,offset_minutes) VALUES (?,?,?,?,?)',
+        ).run(
+          row.id,
+          i,
+          stopIds[entry.stop],
+          entry.onDemand ? 1 : 0,
+          kept.get(`${i}|${stopIds[entry.stop]}`) ?? null,
+        );
         summary.routeStops++;
       });
     });

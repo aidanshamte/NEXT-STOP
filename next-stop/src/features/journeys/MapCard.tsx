@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { C } from '../../components/Brand';
 import LiveMap from '../../components/LiveMap';
 import { Icon, StatusChip, s } from '../../components/UI';
@@ -26,7 +26,10 @@ export default function MapCard({
   routeStops = [],
   highlight = {},
   now,
+  onOpenStop,
 }: {
+  /** Opens a stop's details from the stop strip. */
+  onOpenStop?: (stopId: string) => void;
   stops: Stop[];
   trip?: Trip;
   route?: Route;
@@ -76,7 +79,13 @@ export default function MapCard({
                   {i > 0 && (
                     <View style={{ width: 18, height: 2, backgroundColor: C.line, marginTop: 7 }} />
                   )}
-                  <View style={{ alignItems: 'center', width: 84, gap: 5 }}>
+                  <Pressable
+                    accessibilityRole="link"
+                    accessibilityLabel={`${stop.name}${pickup ? ', your pickup' : dest ? ', your drop-off' : ''}. Opens stop details`}
+                    disabled={!onOpenStop}
+                    onPress={() => onOpenStop?.(stop.id)}
+                    style={{ alignItems: 'center', width: 84, gap: 5 }}
+                  >
                     <View
                       style={{
                         width: pickup ? 16 : 12,
@@ -111,7 +120,7 @@ export default function MapCard({
                               : 'On demand'}
                       </Text>
                     )}
-                  </View>
+                  </Pressable>
                 </View>
               );
             })}

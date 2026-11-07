@@ -9,6 +9,8 @@ Use Node 24+, `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npm ru
 ## Invariants
 
 - Do not reintroduce simulated buses, fictional operational data, role-switch demo controls, or invented ETA. Test fixtures belong under tests only.
+- Arrival estimates come only from server/eta.mjs: stop passage at confirmed pins and stored stop-to-stop travel times (no coordinates). Show them as ranges with their basis, never while GPS is stale, and show "unavailable" when history is insufficient.
+- Stage 3 features (passes, reports, escorts, shared rides) stay off until an institution admin enables them. Never present an in-app report or escort request as emergency dispatch, and never request microphone access.
 - Every operation authenticates and checks institution membership/role server-side. Driver approval and vehicle assignment are separate.
 - Parent visibility requires a current student-owned grant. Revocation is enforced by API reads; realtime events contain no sensitive rider payloads.
 - Never render the previous institution's snapshot during a tenant switch.

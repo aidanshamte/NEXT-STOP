@@ -2,6 +2,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { C } from '../../components/Brand';
 import { Button, Card, Icon, Tag, s } from '../../components/UI';
+import { cancelReasonLabels } from '../../catalog';
 import { ago, isOpen, nextStatus } from '../../domain';
 import type { RideRequest, Role, Trip } from '../../domain';
 import { Progress } from '../student/RiderHome';
@@ -42,8 +43,8 @@ export default function RequestList({
     .slice()
     .reverse()
     .sort((a, b) => Number(isOpen(b.status)) - Number(isOpen(a.status)));
-  const change = (r: RideRequest, status: string, success: string) =>
-    mutate('/requests/status', { requestId: r.id, status }, success);
+  const change = (r: RideRequest, status: string, success: string, reason?: string) =>
+    mutate('/requests/status', { requestId: r.id, status, ...(reason ? { reason } : {}) }, success);
   return (
     <Card>
       <View style={s.row}>
@@ -90,6 +91,9 @@ export default function RequestList({
               <Text style={s.caption}>
                 {trips.find((t) => t.id === r.trip_id)?.name || 'Assigned shuttle'} · updated{' '}
                 {ago(r.updated_at || r.created_at, now)}
+                {r.status === 'cancelled' && r.cancel_reason
+                  ? ` · ${cancelReasonLabels[r.cancel_reason] || ''}`
+                  : ''}
               </Text>
               {!operator && isOpen(r.status) && (
                 <Progress status={r.status} observer={role === 'parent'} />
@@ -125,6 +129,14 @@ export default function RequestList({
                   disabled={busy}
                   label="Rider boarded"
                   onPress={() => change(r, 'boarded', 'Boarding confirmed.')}
+                />
+              )}
+              {operator && ['accepted', 'approaching'].includes(r.status) && (
+                <Button
+                  secondary
+                  disabled={busy}
+                  label="Rider not at the stop"
+                  onPress={() => change(r, 'cancelled', 'Marked as not at the stop.', 'no_show')}
                 />
               )}
               {['student', 'driver', 'admin'].includes(role) &&

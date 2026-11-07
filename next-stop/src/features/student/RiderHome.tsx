@@ -2,8 +2,11 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { C } from '../../components/Brand';
 import { Button, Card, Icon, SectionLabel, Tag, s } from '../../components/UI';
+import { cancelReasonLabels } from '../../catalog';
 import { ago, isBoardable, lifecycle, routeSequence } from '../../domain';
-import type { RideRequest, Route, RouteStop, Stop, Trip } from '../../domain';
+import type { Favorite, RideRequest, Route, RouteStop, Stop, Trip } from '../../domain';
+import SeatsLine from '../journeys/SeatsLine';
+import ArrivalLine from '../journeys/ArrivalLine';
 import MapCard from '../journeys/MapCard';
 import ServiceNotice from '../updates/ServiceNotice';
 import { actionKey, statusLabels } from '../workspace/types';
@@ -43,7 +46,18 @@ export default function RiderHome({
   pending,
   mutate,
   now,
+  demand = [],
+  favorites = [],
+  expiryMinutes = 30,
+  lastClosed,
+  onOpenStop,
 }: {
+  demand?: { stop_id: string; waiting: number }[];
+  favorites?: Favorite[];
+  expiryMinutes?: number;
+  /** The rider's most recent closed request, to explain a cancellation they didn't make. */
+  lastClosed?: RideRequest;
+  onOpenStop: (stopId: string) => void;
   stops: Stop[];
   routes?: Route[];
   routeStops?: RouteStop[];
@@ -68,10 +82,25 @@ export default function RiderHome({
     route
       ? routeSequence(route.id, routeStops, stops)
       : stops.map((stop) => ({ stop, onDemand: false, position: stop.position }))
-  ).filter(
-    (entry, index, list) =>
-      isBoardable(entry.stop) && list.findIndex((e) => e.stop.id === entry.stop.id) === index,
-  );
+  )
+    .filter(
+      (entry, index, list) =>
+        isBoardable(entry.stop) && list.findIndex((e) => e.stop.id === entry.stop.id) === index,
+    )
+    // Saved stops first, in route order otherwise.
+    .sort((a, b) => Number(!!saved(b.stop.id)) - Number(!!saved(a.stop.id)));
+  function saved(stopId: string) {
+    return favorites.find((f) => f.kind === 'stop' && f.target_id === stopId);
+  }
+  const waiting = (stopId: string) => demand.find((d) => d.stop_id === stopId)?.waiting ?? 0;
+  const explained =
+    lastClosed &&
+    lastClosed.status === 'cancelled' &&
+    lastClosed.cancel_reason &&
+    lastClosed.cancel_reason !== 'rider' &&
+    now - (lastClosed.updated_at || lastClosed.created_at) < 30 * 60000
+      ? lastClosed
+      : undefined;
   const highlight = request
     ? { pickupId: request.stop_id, destinationId: request.destination_id }
     : { pickupId: pickup, destinationId: destination };
@@ -93,6 +122,7 @@ export default function RiderHome({
     <View style={{ gap: 16 }}>
       {trip && <ServiceNotice trip={trip} />}
       <MapCard
+        onOpenStop={onOpenStop}
         stops={stops}
         trip={trip}
         route={route}
@@ -118,18 +148,39 @@ export default function RiderHome({
               color={C.coral}
               label="Pickup"
               name={stopName(request.stop_id)}
+              onPress={() => onOpenStop(request.stop_id)}
             />
             <StopLine
               icon="flag"
               color={C.navy}
               label="Drop-off"
               name={stopName(request.destination_id)}
+              onPress={() => onOpenStop(request.destination_id)}
             />
           </View>
+          {['requested', 'accepted', 'approaching'].includes(request.status) && (
+            <Tag
+              text={
+                waiting(request.stop_id) > 1
+                  ? `You and ${waiting(request.stop_id) - 1} other rider${waiting(request.stop_id) === 2 ? '' : 's'} waiting here`
+                  : 'You’re the only rider waiting here'
+              }
+              tone="gray"
+            />
+          )}
+          {trip &&
+            trip.id === request.trip_id &&
+            ['requested', 'accepted', 'approaching'].includes(request.status) && (
+              <ArrivalLine trip={trip} stopId={request.stop_id} stops={stops} now={now} />
+            )}
           <Progress status={request.status} />
+          {trip && trip.id === request.trip_id && <SeatsLine trip={trip} now={now} />}
           <Text style={s.caption}>
             Updated {ago(request.updated_at || request.created_at, now)}. Each step is confirmed by
-            your driver; NEXT STOP does not estimate arrival times.
+            your driver.
+            {request.status === 'requested'
+              ? ` If no driver accepts within ${expiryMinutes} minutes, the request clears and you’ll be told.`
+              : ''}
           </Text>
           {['requested', 'accepted', 'approaching'].includes(request.status) && (
             <Button
@@ -150,10 +201,23 @@ export default function RiderHome({
         </Card>
       ) : (
         <Card style={{ gap: 16 }}>
+          {explained && (
+            <View style={[s.notice, { backgroundColor: '#FFF4D6' }]} accessibilityRole="alert">
+              <Icon name="information-circle-outline" color="#8A5A00" />
+              <Text style={[s.body, { flex: 1, color: C.navy }]}>
+                Your last request at {stopName(explained.stop_id)} was cancelled:{' '}
+                {cancelReasonLabels[explained.cancel_reason as string]?.toLowerCase()}.
+              </Text>
+            </View>
+          )}
           <View style={{ gap: 4 }}>
             <SectionLabel>Request a pickup</SectionLabel>
             <Text style={s.title}>Where should we pick you up?</Text>
           </View>
+          {trip?.active ? <SeatsLine trip={trip} now={now} /> : null}
+          {trip?.active && pickup ? (
+            <ArrivalLine trip={trip} stopId={pickup} stops={stops} now={now} />
+          ) : null}
           {trips.length > 1 && (
             <View style={{ gap: 8 }}>
               <Text style={s.label}>SHUTTLE</Text>
@@ -171,6 +235,7 @@ export default function RiderHome({
                       key={stop.id}
                       accessibilityRole="radio"
                       accessibilityState={{ selected }}
+                      aria-checked={selected}
                       accessibilityLabel={`Pickup at ${stop.name}${onDemand ? ', on-demand stop' : ''}`}
                       onPress={() => {
                         setPickup(stop.id);
@@ -188,10 +253,21 @@ export default function RiderHome({
                       />
                       <View style={{ flex: 1 }}>
                         <Text style={[s.heading, { fontWeight: selected ? '700' : '500' }]}>
+                          {saved(stop.id)?.label ? `${saved(stop.id)?.label} · ` : ''}
                           {stop.name}
                         </Text>
-                        {onDemand && <Text style={s.caption}>On-demand stop</Text>}
+                        {(onDemand || waiting(stop.id) > 0) && (
+                          <Text style={s.caption}>
+                            {[
+                              onDemand ? 'On-demand stop' : '',
+                              waiting(stop.id) > 0 ? `${waiting(stop.id)} waiting` : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </Text>
+                        )}
                       </View>
+                      {!!saved(stop.id) && <Icon name="star" size={16} color={C.coral} />}
                     </Pressable>
                   );
                 })}
@@ -206,6 +282,8 @@ export default function RiderHome({
                       key={stop.id}
                       accessibilityRole="radio"
                       accessibilityState={{ selected: destination === stop.id }}
+                      aria-checked={destination === stop.id}
+                      accessibilityLabel={`Drop-off at ${stop.name}`}
                       onPress={() => setDestination(stop.id)}
                       style={[s.pill, destination === stop.id && s.pillActive]}
                     >
@@ -219,7 +297,7 @@ export default function RiderHome({
           )}
           <Button
             large
-            label={pickup && !blocker ? `Request pickup at ${stopName(pickup)}` : 'Request pickup'}
+            label={pickup && !blocker ? `I’m waiting at ${stopName(pickup)}` : 'I’m waiting here'}
             loadingLabel="Sending request…"
             icon="hand-left-outline"
             loading={requesting}
@@ -236,7 +314,7 @@ export default function RiderHome({
             <Icon name="information-circle-outline" size={18} color={C.muted} />
             <Text style={[s.caption, { flex: 1 }]}>
               {blocker ||
-                'Your pickup is confirmed only when the driver accepts. Wait at the stop you chose.'}
+                `Your driver sees your request and how many riders are waiting. It’s confirmed only when the driver accepts; unaccepted requests clear after ${expiryMinutes} minutes.`}
             </Text>
           </View>
         </Card>
@@ -250,20 +328,28 @@ function StopLine({
   color,
   label,
   name,
+  onPress,
 }: {
   icon: 'radio-button-on' | 'flag';
   color: string;
   label: string;
   name: string;
+  onPress: () => void;
 }) {
   return (
-    <View style={[s.row, { justifyContent: 'flex-start', gap: 12 }]}>
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`${label}: ${name}. Opens stop details`}
+      onPress={onPress}
+      style={[s.row, { justifyContent: 'flex-start', gap: 12 }]}
+    >
       <Icon name={icon} size={18} color={color} />
       <View style={{ flex: 1 }}>
         <Text style={s.caption}>{label}</Text>
         <Text style={s.heading}>{name}</Text>
       </View>
-    </View>
+      <Icon name="chevron-forward" size={16} color={C.muted} />
+    </Pressable>
   );
 }
 
