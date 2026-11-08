@@ -25,6 +25,19 @@ export interface Stop {
   details_verified_at?: number | null;
   details_verified_by?: string | null;
   has_photo?: number;
+  /** Administrators only: how the pin was set, and a researched suggestion for a draft stop. */
+  import_key?: string | null;
+  pin_source?: string;
+  pinned_at?: number | null;
+  suggestion?: {
+    lat: number;
+    lng: number;
+    confidence: 'high' | 'medium' | 'low';
+    basis: string;
+    source: string;
+    researchedAt: string | null;
+  };
+  unresolved?: string;
 }
 export interface Route {
   id: string;

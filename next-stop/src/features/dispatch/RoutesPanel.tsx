@@ -79,9 +79,13 @@ export default function RoutesPanel({
             </View>
             {onDemand && <Text style={s.caption}>On-demand stop</Text>}
             {!!stop.note && <Text style={s.caption}>{stop.note}</Text>}
+            {draft && !!stop.suggestion && (
+              <Text style={s.caption}>Suggested location ready for review above.</Text>
+            )}
             {!draft && (
               <Text style={s.caption}>
                 Pin {stop.lat?.toFixed(5)}, {stop.lng?.toFixed(5)}
+                {stop.pin_source ? ` · ${stop.pin_source}` : ''}
               </Text>
             )}
             {editing === stop.id ? (
@@ -111,15 +115,34 @@ export default function RoutesPanel({
                   }
                 />
                 {!!fix && <Text style={s.caption}>{fix}</Text>}
-                <Field label="Latitude" value={latitude} onChange={setLatitude} />
-                <Field label="Longitude" value={longitude} onChange={setLongitude} />
+                <Field
+                  label="Latitude"
+                  value={latitude}
+                  onChange={(v) => {
+                    setLatitude(v);
+                    setFix('');
+                  }}
+                />
+                <Field
+                  label="Longitude"
+                  value={longitude}
+                  onChange={(v) => {
+                    setLongitude(v);
+                    setFix('');
+                  }}
+                />
                 <Button
                   label="Confirm boarding point"
                   disabled={busy || !latitude || !longitude}
                   onPress={() =>
                     void mutate(
                       '/stops/pin',
-                      { stopId: stop.id, lat: Number(latitude), lng: Number(longitude) },
+                      {
+                        stopId: stop.id,
+                        lat: Number(latitude),
+                        lng: Number(longitude),
+                        source: fix ? 'gps' : 'typed',
+                      },
                       `${stop.name} is confirmed. Riders can now board there.`,
                     ).then(() => setEditing(''))
                   }
@@ -174,8 +197,8 @@ export default function RoutesPanel({
         </>
       )}
       <Text style={[s.caption, { color: C.muted }]}>
-        Stops and routes come from your institution’s published shuttle information. NEXT STOP shows
-        no schedules or arrival estimates.
+        Stops and routes come from your institution’s published shuttle information. Arrival
+        estimates start only after shuttles with an assigned route pass confirmed stops.
       </Text>
     </Card>
   );

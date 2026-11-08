@@ -227,3 +227,63 @@ test('approach notifications through the GPS endpoint, once, as chosen', async (
   assert.equal(approach('northbridge-student2').length, 0, 'turned off');
   assert.equal(approach('lakeside-student').length, 0);
 });
+
+test('accuracy is measured against real passages, per institution, admins only', async (t) => {
+  let now = Date.UTC(2026, 10, 2, 13);
+  const h = await harness(t, { clock: () => now });
+  setupRoute(h.app.db);
+  const fix = driver(h.app);
+  const admin = h.as('northbridge-admin');
+  let time = now;
+  fix(41.1601, -73.25, time);
+  // Two laps build history; with fewer than three samples nothing is shown or checked.
+  for (let i = 0; i < 2; i++) time = lap(fix, time, [120, 150, 90, 200]);
+  now = time;
+  let acc = (await admin.get('/estimates/accuracy')).data;
+  assert.equal(acc.checks, 0, 'no estimate was shown during the history laps');
+  // Laps on the usual times: the estimates shown at each passage are resolved by later ones.
+  for (let i = 0; i < 3; i++) time = lap(fix, time, [122, 148, 92, 198]);
+  now = time;
+  acc = (await admin.get('/estimates/accuracy')).data;
+  assert.ok(acc.checks >= 8, `measured arrivals: ${acc.checks}`);
+  assert.equal(acc.within, acc.checks, 'usual times fall inside the shown range');
+  assert.equal(acc.routes[0].name, 'Loop');
+  // A much slower lap lands outside the range and is counted as such.
+  const before = acc.checks;
+  time = lap(fix, time, [400, 400, 400, 400]);
+  now = time;
+  acc = (await admin.get('/estimates/accuracy')).data;
+  assert.ok(acc.checks > before && acc.within < acc.checks, 'slow arrivals are misses');
+  assert.ok(acc.medianError > 0);
+  // Checks hold route positions and times only.
+  assert.deepEqual(
+    Object.keys(h.app.db.prepare('SELECT * FROM estimate_checks LIMIT 1').get()).sort(),
+    [
+      'actual',
+      'from_position',
+      'high',
+      'id',
+      'institution_id',
+      'low',
+      'made_at',
+      'mid',
+      'resolved_at',
+      'route_id',
+      'samples',
+      'target_position',
+      'trip_id',
+    ],
+  );
+  // Admins only; another institution sees none of it.
+  assert.equal((await h.as('northbridge-student').get('/estimates/accuracy')).status, 403);
+  assert.equal((await h.as('northbridge-driver').get('/estimates/accuracy')).status, 403);
+  assert.equal((await h.as('lakeside-admin').get('/estimates/accuracy')).data.checks, 0);
+  // Ending service drops unresolved checks; retention removes the rest after 60 days.
+  await h.as('northbridge-driver').post('/trips/service', { tripId: 'bus', active: false });
+  const open = h.app.db
+    .prepare('SELECT count(*) AS n FROM estimate_checks WHERE resolved_at IS NULL')
+    .get().n;
+  assert.equal(open, 0);
+  pruneExpired(h.app.db, time + 61 * 86400000);
+  assert.equal(h.app.db.prepare('SELECT count(*) AS n FROM estimate_checks').get().n, 0);
+});

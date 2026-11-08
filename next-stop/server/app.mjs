@@ -9,6 +9,7 @@ import { OPEN_STATUSES } from './db.mjs';
 import { createService } from './service.mjs';
 import { createEta } from './eta.mjs';
 import { createSafety } from './safety.mjs';
+import { createSuggestions } from './suggestions.mjs';
 
 const OPEN_SQL = OPEN_STATUSES.map((v) => `'${v}'`).join(',');
 const firstName = (name) =>
@@ -51,6 +52,8 @@ export function createApp({
   // Expo push transport. Off unless injected or PUSH_ENABLED=1 (the production service sets it).
   pushTransport = process.env.PUSH_ENABLED === '1' ? createExpoTransport() : null,
   clock = Date.now,
+  // Researched stop suggestions (tests inject their own; default: server/imports).
+  suggestionData = undefined,
 } = {}) {
   const db = openDatabase(dbPath);
   const auth = createAuth(db, authOptions);
@@ -98,6 +101,10 @@ export function createApp({
   };
   const service = createService({ db, push, clock, fail });
   const eta = createEta({ db, clock });
+  const suggestions = createSuggestions({
+    db,
+    ...(suggestionData ? { data: suggestionData } : {}),
+  });
   const safety = createSafety({ db, push, clock, fail, audience: service.audience });
   // Ends shares whose time limit passed or whose single ride is over.
   const endShares = () =>
@@ -354,7 +361,7 @@ export function createApp({
         // Draft stops (no confirmed boarding point) are visible to administrators only.
         const stops = db
           .prepare(
-            `SELECT id,institution_id,name,lat,lng,position,status,note,description,accessibility,amenities,details_verified_at,details_verified_by FROM stops WHERE institution_id=? ${member.role === 'admin' ? '' : "AND status='confirmed'"} ORDER BY position`,
+            `SELECT id,institution_id,name,lat,lng,position,status,note,description,accessibility,amenities,details_verified_at,details_verified_by${member.role === 'admin' ? ',import_key,pin_source,pinned_at' : ''} FROM stops WHERE institution_id=? ${member.role === 'admin' ? '' : "AND status='confirmed'"} ORDER BY position`,
           )
           .all(org);
         const routes = db
@@ -443,7 +450,9 @@ export function createApp({
           memberships,
           role: member.role,
           approved: true,
-          stops: service.decorateStops(stops),
+          stops: service.decorateStops(
+            member.role === 'admin' ? suggestions.decorate(org, stops) : stops,
+          ),
           trips,
           requests,
           shares,
@@ -459,6 +468,11 @@ export function createApp({
       const context = { path, method: req.method, body, url, uid, member, org, send, text };
       if (await service.handle(context)) return;
       if (await safety.handle(context)) return;
+      if (path === '/estimates/accuracy' && req.method === 'GET') {
+        // Measured against real passages only; see eta.mjs.
+        if (member.role !== 'admin') fail(403, 'Admin access required.');
+        return send(200, eta.accuracy(org));
+      }
       if (req.method !== 'POST') fail(404, 'Endpoint not found.');
       if (path === '/stops') {
         if (member.role !== 'admin') fail(403, 'Admin access required.');
@@ -496,9 +510,34 @@ export function createApp({
           (lat === 0 && lng === 0)
         )
           fail(400, 'Enter valid latitude and longitude.');
-        db.prepare("UPDATE stops SET lat=?,lng=?,status='confirmed' WHERE id=?").run(
-          lat,
-          lng,
+        const source = body.source === 'gps' ? 'Device GPS' : 'Coordinates entered';
+        db.prepare(
+          "UPDATE stops SET lat=?,lng=?,status='confirmed',pin_source=?,pinned_by=?,pinned_at=? WHERE id=?",
+        ).run(lat, lng, `${source} by an administrator`, uid, clock(), stop.id);
+        return send(200, { ok: true });
+      }
+      if (path === '/stops/approve-suggestion') {
+        // One tap: the administrator accepts the researched suggestion as the boarding point.
+        if (member.role !== 'admin') fail(403, 'Admin access required.');
+        const stop = db
+          .prepare('SELECT id,status,import_key FROM stops WHERE id=? AND institution_id=?')
+          .get(text('stopId'), org);
+        if (!stop) fail(404, 'Stop not found.');
+        if (stop.status === 'confirmed')
+          fail(409, 'This stop already has a confirmed boarding point.');
+        const suggestion = suggestions.lookup(org, stop.import_key);
+        if (!suggestion) fail(400, 'This stop has no suggested location.');
+        db.prepare(
+          "UPDATE stops SET lat=?,lng=?,status='confirmed',pin_source=?,pinned_by=?,pinned_at=? WHERE id=?",
+        ).run(
+          suggestion.lat,
+          suggestion.lng,
+          `Approved suggestion (${suggestion.confidence} confidence): ${suggestion.basis}`.slice(
+            0,
+            500,
+          ),
+          uid,
+          clock(),
           stop.id,
         );
         return send(200, { ok: true });
@@ -703,7 +742,11 @@ export function createApp({
           )
             fail(409, 'Resolve active pickup requests and onboard riders before ending service.');
           // Location is kept only while in service; ending service discards the last fix.
-          // The onboard count starts from zero each service.
+          // The onboard count starts from zero each service. Unresolved estimate checks end with
+          // the progress they were measured from.
+          db.prepare('DELETE FROM estimate_checks WHERE trip_id=? AND resolved_at IS NULL').run(
+            trip.id,
+          );
           if (body.active)
             db.prepare(
               "UPDATE trips SET active=1,onboard=0,onboard_updated_at=NULL,onboard_source='events',progress_position=NULL,progress_at=NULL,progress_route_id=NULL WHERE id=? AND active=0",

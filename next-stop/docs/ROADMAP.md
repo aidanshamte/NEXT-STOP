@@ -1,6 +1,6 @@
 # NEXT STOP implementation checklist
 
-The living task list. Update it in the same commit as the work. Mark an item `[x]` only with evidence (a test, or a recorded device/provider result in VALIDATION.md). Last updated: 2026-11-07.
+The living task list. Update it in the same commit as the work. Mark an item `[x]` only with evidence (a test, or a recorded device/provider result in VALIDATION.md). Last updated: 2026-11-08.
 
 ## Milestone 1: real pickup + real GPS between two installed phones via Azure
 
@@ -66,7 +66,11 @@ To re-import after the sign changes: edit `server/imports/fairfield-university-s
 
 - [x] Routes (ordered stops); institution timetables: service periods, departures, stop times, closures and notes, time zone (`service.test.mjs`)
 - [x] Stop details: description, accessibility, amenities, photo, administrator verification (`service.test.mjs`)
-- [ ] Archive stops; enter Fairfield's real timetable (needs the published schedule from the institution)
+- [x] Researched boarding-point suggestions for Fairfield's 23 stops, approved with one tap by an administrator (`suggestions.test.mjs`, FAIRFIELD-STOPS.md)
+- [ ] Approve or correct the 21 Fairfield suggestions and pin Blocks 13 and 17 on site (administrator)
+- [ ] Archive stops; enter Fairfield's real timetable (FAIRFIELD-TIMETABLE.md lists the missing effective dates and times)
+- [x] Arrival-estimate accuracy measured against real passages, shown to administrators (`eta.test.mjs`)
+- [ ] Measure accuracy on real Fairfield service (ACCEPTANCE.md pass criteria) before calling estimates accurate
 - [x] Capacity and features per vehicle (`service.test.mjs`). A separate vehicle registry is still open
 - [ ] Institution invitation codes or verified email domains for faster, still admin-controlled, approval
 - [ ] Demand review: requests by stop and time; service activity history with a defined retention period

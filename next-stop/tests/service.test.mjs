@@ -18,7 +18,7 @@ const PNG = Buffer.from(
   'hex',
 );
 
-export async function harness(t, { clock } = {}) {
+export async function harness(t, { clock, suggestionData } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nextstop-service-'));
   const sent = [];
   const transport = {
@@ -35,6 +35,7 @@ export async function harness(t, { clock } = {}) {
     pushTransport: transport,
     authOptions: { mailer: async () => {} },
     clock,
+    suggestionData,
   });
   seedInstitutions(app.db);
   const people = [

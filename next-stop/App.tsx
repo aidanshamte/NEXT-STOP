@@ -36,6 +36,8 @@ import SetupPanel from './src/features/setup/SetupPanel';
 import StopDetails from './src/features/stops/StopDetails';
 import DispatchPanel from './src/features/dispatch/DispatchPanel';
 import RoutesPanel from './src/features/dispatch/RoutesPanel';
+import SuggestedPins from './src/features/dispatch/SuggestedPins';
+import EstimateAccuracy from './src/features/setup/EstimateAccuracy';
 import type { DispatchDraft } from './src/features/dispatch/DispatchPanel';
 import DriverControls, { DriverUpdateForm } from './src/features/driver/DriverControls';
 import RequestList from './src/features/journeys/RequestList';
@@ -543,6 +545,7 @@ function Workspace() {
     );
   const setup = data ? (
     <>
+      <SuggestedPins stops={stops} busy={busy} mutate={mutate} />
       <SetupPanel data={data} busy={busy} mutate={mutate} onOpenStop={openStop} />
       <SafetySetup data={data} busy={busy} mutate={mutate} />
       <DispatchPanel
@@ -566,6 +569,7 @@ function Workspace() {
         run={run}
         mutate={mutate}
       />
+      <EstimateAccuracy org={org} />
     </>
   ) : null;
   return (

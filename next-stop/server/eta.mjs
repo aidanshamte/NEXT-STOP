@@ -11,6 +11,10 @@
 // with a range from the 20th to 80th percentiles. It is unavailable when the route has no
 // progress yet, when any segment has fewer than MIN_SAMPLES samples, or when the vehicle has
 // gone well past its usual time. Clients also hide it while GPS is not current.
+//
+// Accuracy is measured, not assumed: at every passage the estimates then shown for the stops
+// ahead are stored as checks, and resolved when the same vehicle actually passes that stop.
+// `accuracy()` reports how often the real arrival fell inside the shown range.
 
 export const PASS_RADIUS = 40;
 export const MIN_SAMPLES = 3;
@@ -18,6 +22,11 @@ export const LOOKAHEAD = 4;
 export const SAMPLE_RETENTION_DAYS = 60;
 const MAX_SAMPLES = 50;
 const PROGRESS_TTL = 30 * 60000;
+const CHECK_TTL = 2 * 3600000;
+const median = (xs) => {
+  const s = [...xs].sort((a, b) => a - b);
+  return s.length ? s[Math.floor((s.length - 1) / 2)] : null;
+};
 
 const toRad = (d) => (d * Math.PI) / 180;
 /** Metres between two points (equirectangular; accurate at stop-to-stop scale). */
@@ -109,6 +118,7 @@ export function createEta({ db, clock }) {
     db.prepare(
       'UPDATE trips SET progress_position=?,progress_at=?,progress_route_id=? WHERE id=?',
     ).run(passed, fix.capturedAt, before.route_id, before.id);
+    check(before, passed, fix.capturedAt);
     return { position: passed, stopId: seq.rows[passed].stop_id, seq, lap };
   }
 
@@ -192,7 +202,79 @@ export function createEta({ db, clock }) {
     };
   }
 
+  /** Resolves checks that predicted this passage, then records the estimates now shown. */
+  function check(before, position, at) {
+    db.prepare(
+      'UPDATE estimate_checks SET actual=CAST(ROUND((?-made_at)/1000.0) AS INTEGER),resolved_at=? WHERE trip_id=? AND target_position=? AND route_id=? AND resolved_at IS NULL AND made_at>=?',
+    ).run(at, at, before.id, position, before.route_id, at - CHECK_TTL);
+    db.prepare(
+      'DELETE FROM estimate_checks WHERE trip_id=? AND resolved_at IS NULL AND made_at<?',
+    ).run(before.id, at - CHECK_TTL);
+    const trip = db.prepare('SELECT * FROM trips WHERE id=?').get(before.id);
+    const shown = estimates(trip).estimates.slice(0, LOOKAHEAD);
+    const insert = db.prepare(
+      'INSERT INTO estimate_checks(institution_id,route_id,trip_id,from_position,target_position,made_at,low,mid,high,samples) VALUES (?,?,?,?,?,?,?,?,?,?)',
+    );
+    for (const e of shown)
+      insert.run(
+        before.institution_id,
+        before.route_id,
+        before.id,
+        position,
+        e.position,
+        at,
+        e.low,
+        e.mid,
+        e.high,
+        e.samples,
+      );
+  }
+
+  /** Real-service accuracy per route over the last `days` days (resolved checks only). A
+   * check is "within" when the actual arrival fell inside the shown range, with a 60 s margin
+   * for GPS fix spacing. */
+  function accuracy(org, days = 30, now = clock()) {
+    const rows = db
+      .prepare(
+        `SELECT c.route_id,r.name,c.low,c.mid,c.high,c.actual FROM estimate_checks c LEFT JOIN routes r ON r.id=c.route_id
+         WHERE c.institution_id=? AND c.resolved_at IS NOT NULL AND c.made_at>=?`,
+      )
+      .all(org, now - days * 86400000);
+    const open = db
+      .prepare(
+        'SELECT count(*) AS n FROM estimate_checks WHERE institution_id=? AND resolved_at IS NULL',
+      )
+      .get(org).n;
+    const byRoute = new Map();
+    for (const row of rows) {
+      const r = byRoute.get(row.route_id) || {
+        routeId: row.route_id,
+        name: row.name || 'Route',
+        checks: 0,
+        within: 0,
+        errors: [],
+      };
+      r.checks++;
+      if (row.actual >= row.low - 60 && row.actual <= row.high + 60) r.within++;
+      r.errors.push(Math.abs(row.actual - row.mid));
+      byRoute.set(row.route_id, r);
+    }
+    const routes = [...byRoute.values()].map(({ errors, ...r }) => ({
+      ...r,
+      medianError: median(errors),
+    }));
+    return {
+      days,
+      checks: rows.length,
+      within: routes.reduce((n, r) => n + r.within, 0),
+      medianError: median(rows.map((r) => Math.abs(r.actual - r.mid))),
+      pending: open,
+      routes,
+    };
+  }
+
   function reset(tripId) {
+    db.prepare('DELETE FROM estimate_checks WHERE trip_id=? AND resolved_at IS NULL').run(tripId);
     db.prepare(
       'UPDATE trips SET progress_position=NULL,progress_at=NULL,progress_route_id=NULL WHERE id=?',
     ).run(tripId);
@@ -201,6 +283,9 @@ export function createEta({ db, clock }) {
     db.prepare('DELETE FROM segment_times WHERE recorded_at<?').run(
       now - SAMPLE_RETENTION_DAYS * 86400000,
     );
+    db.prepare('DELETE FROM estimate_checks WHERE made_at<?').run(
+      now - SAMPLE_RETENTION_DAYS * 86400000,
+    );
   }
-  return { onFix, estimates, stopsUntil, reset, prune, sequence };
+  return { onFix, estimates, stopsUntil, reset, prune, sequence, accuracy };
 }

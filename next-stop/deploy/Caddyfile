@@ -19,7 +19,7 @@
 # Exact backend routes. Everything else on the website is the web app.
 # tests/caddy-routes.test.mjs fails if a server route is missing here.
 (api_routes) {
-	@api path /health /institutions /me /memberships /snapshot /shares /shares/* /stops /stops/* /trips /trips/* /requests /requests/* /members/* /account/* /push/* /auth/* /realtime /settings /prefs /favorites /favorites/* /alerts /alerts/* /schedule /schedule/* /pass/* /incidents /incidents/* /escorts /escorts/* /rides/* /safety/*
+	@api path /health /institutions /me /memberships /snapshot /shares /shares/* /stops /stops/* /trips /trips/* /requests /requests/* /members/* /account/* /push/* /auth/* /realtime /settings /prefs /favorites /favorites/* /alerts /alerts/* /schedule /schedule/* /pass/* /incidents /incidents/* /escorts /escorts/* /rides/* /safety/* /estimates/*
 }
 
 # Mobile apps and existing clients: API-only hostname (unchanged behaviour).

@@ -133,6 +133,16 @@ const migrations = [
     CREATE UNIQUE INDEX ride_intents_one ON ride_intents(user_id,institution_id);
     CREATE TABLE ride_blocks(blocker_id TEXT NOT NULL REFERENCES users(id),blocked_id TEXT NOT NULL REFERENCES users(id),institution_id TEXT NOT NULL,created_at INTEGER NOT NULL,PRIMARY KEY(blocker_id,blocked_id,institution_id));`);
   },
+  // 8: how each boarding point was set (device location, map, or an approved researched
+  // suggestion) and by whom, and checks of shown arrival estimates against real passages.
+  (db) => {
+    db.exec(`ALTER TABLE stops ADD COLUMN pin_source TEXT NOT NULL DEFAULT '';
+    ALTER TABLE stops ADD COLUMN pinned_by TEXT;
+    ALTER TABLE stops ADD COLUMN pinned_at INTEGER;
+    CREATE TABLE estimate_checks(id INTEGER PRIMARY KEY,institution_id TEXT NOT NULL REFERENCES institutions(id),route_id TEXT NOT NULL,trip_id TEXT NOT NULL,from_position INTEGER NOT NULL,target_position INTEGER NOT NULL,made_at INTEGER NOT NULL,low INTEGER NOT NULL,mid INTEGER NOT NULL,high INTEGER NOT NULL,samples INTEGER NOT NULL,actual INTEGER,resolved_at INTEGER);
+    CREATE INDEX estimate_checks_open ON estimate_checks(trip_id,target_position) WHERE resolved_at IS NULL;
+    CREATE INDEX estimate_checks_org ON estimate_checks(institution_id,route_id,made_at);`);
+  },
 ];
 // Statuses in which a request holds a place and blocks a new request by the same student.
 export const OPEN_STATUSES = ['requested', 'accepted', 'approaching', 'boarded'];
@@ -180,4 +190,5 @@ export function pruneExpired(db, now = Date.now()) {
   db.prepare('DELETE FROM push_tickets WHERE created_at<=?').run(now - 86400000);
   // Travel-time history for arrival estimates is kept for 60 days.
   db.prepare('DELETE FROM segment_times WHERE recorded_at<?').run(now - 60 * 86400000);
+  db.prepare('DELETE FROM estimate_checks WHERE made_at<?').run(now - 60 * 86400000);
 }
