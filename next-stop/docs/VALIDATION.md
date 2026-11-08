@@ -84,6 +84,16 @@ Test environment: a throwaway scratchpad database ("Test Institution", "Test Sto
 
 **Not verified:** camera scanning, photo picking, tap-to-call/text, push delivery of the new notifications and the native map on a physical phone; arrival-estimate accuracy on real service (needs pins, routes and days of operation).
 
+## 2f. Passed: boarding-point suggestions and estimate accuracy (2026-11-08)
+
+- **Automated:** `npm test` **144 tests, 0 failures** (new: `suggestions.test.mjs`; accuracy test in `eta.test.mjs`). Lint, typecheck, Prettier. The accuracy test caught a real bug before release: arrival times were stored in milliseconds and compared with ranges in seconds, so nothing counted as within range; another fix ends unresolved checks when service ends.
+- **Local browser** (throwaway database; a test institution named "Fairfield University" with the shipped route import; test accounts; 375 px): **Setup** showed "21 draft stops have a researched location", Barone Campus Center Traffic Circle first with "High confidence", its evidence, source and a map pin on the Loyola Drive loop. **Skip for now** moved to "2 of 21"; **Approve suggested location** confirmed Walsh Lot Crosswalk, the count fell to 20, the rider's snapshot then listed that stop (no suggestion or pin-source fields), and the route list showed "Approved suggestion (low confidence) …". Blocks 13 and 17 were listed under "No suggestion found". The accuracy card read "No measured arrivals yet … must not be described as accurate". No overflow, no console errors.
+- **Production (release `86ae193919b1`):** deploy workflow and CI succeeded; `/health` schema 8; Fairfield University still listed; 34/34 new routes return 401 JSON signed out; `verify-web.mjs` 17/17; the live route chunk contains both new cards. No signed-in production session was used. Production stops were not read or changed: approving suggestions is left to the administrator.
+- **Expo Go:** restarted with `--go --tunnel` on port 8082; the tunnel served the manifest and a 7.5 MB Android bundle built from the current code.
+- **Android preview builds:** 0.5.0 (versionCode 2, commit `5b7175a`) finished; 0.5.1 (versionCode 3, includes the review and accuracy cards) built from `13547a1`. Neither contains Firebase configuration, so Android push cannot be received yet.
+
+**Not verified:** any physical-phone behavior (ACCEPTANCE.md, including feature checks F1–F6); whether any suggested point is where Fairfield shuttles actually stop; estimate accuracy on real service.
+
 ## 3. Not yet tested: needs the owner's accounts, money or devices
 
 - **Automatic rollback on a failing release** has not been triggered on the VM (only healthy releases were deployed). Budget/alert emails have not fired.
