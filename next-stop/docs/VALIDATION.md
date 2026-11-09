@@ -109,6 +109,11 @@ Test environment: a throwaway scratchpad database ("Test Institution", "Test Sto
   - Reconnect: the rider panned the map, the API process was stopped for 16 s (header "Offline · data from 15s ago", vehicles still drawn, greyed as out of date), then restarted; the header returned to "Live" and the new fix arrived without a reload, and the panned view was unchanged.
   - Bugs found and fixed during the run: MapLibre replaced marker labels with "Map marker"; a vehicle restyle removed MapLibre's positioning classes so it slipped under stop signs; popups and the key drew under markers.
   - No console errors.
+- **Production (release `71fe67d78f7a`):** deploy workflow and CI succeeded; `/health` schema 9; `verify-web.mjs` 17/17; 34/34 earlier routes still return 401 JSON signed out, as does `POST /trips/vehicle`; the live `/map.html` is byte-identical to the repository and keeps its own CSP and `geolocation=()` policy. No signed-in production session was used; no production vehicle has a type set yet (administrators set it under **Setup → Vehicles**).
+- **Expo Go:** restarted with `--go --tunnel` on port 8082; the tunnel served the iOS manifest and a 7.5 MB bundle containing the new map code. No new native module was added; the map artwork is SVG inside the existing WebView.
+- **Android preview build 0.5.2** (versionCode 4, commit `71fe67d`) finished. The installed 0.5.1 app does not get these markers or the heading upload until 0.5.2 is installed (no over-the-air updates are configured).
+
+**Not verified:** markers on a physical iPhone in Expo Go or on an installed Android build (ACCEPTANCE.md F7); real driver GPS headings; Reduce Motion as set on a phone (only emulated in Chrome).
 
 ## 3. Not yet tested: needs the owner's accounts, money or devices
 
