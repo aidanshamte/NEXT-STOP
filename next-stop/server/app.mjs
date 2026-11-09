@@ -6,7 +6,7 @@ import { tokenHash, verifyPassword } from './security.mjs';
 import { createAuth } from './auth.mjs';
 import { createPush, createExpoTransport, EXPO_TOKEN } from './push.mjs';
 import { OPEN_STATUSES } from './db.mjs';
-import { createService } from './service.mjs';
+import { createService, VEHICLE_TYPES } from './service.mjs';
 import { createEta } from './eta.mjs';
 import { createSafety } from './safety.mjs';
 import { createSuggestions } from './suggestions.mjs';
@@ -378,7 +378,7 @@ export function createApp({
           .filter((entry) => visibleStop.has(entry.stop_id));
         let trips = db
           .prepare(
-            "SELECT id,institution_id,driver_id,route_id,name,capacity,active,lat,lng,accuracy,updated_at,delay_minutes,issue,onboard,onboard_updated_at,onboard_source,features,progress_position,progress_at,progress_route_id,(SELECT count(*) FROM requests r WHERE r.trip_id=trips.id AND r.status IN ('accepted','approaching')) AS reserved FROM trips WHERE institution_id=?",
+            "SELECT id,institution_id,driver_id,route_id,name,capacity,vehicle_type,active,lat,lng,accuracy,heading,updated_at,delay_minutes,issue,onboard,onboard_updated_at,onboard_source,features,progress_position,progress_at,progress_route_id,(SELECT count(*) FROM requests r WHERE r.trip_id=trips.id AND r.status IN ('accepted','approaching')) AS reserved FROM trips WHERE institution_id=?",
           )
           .all(org)
           .map((t) => {
@@ -564,7 +564,9 @@ export function createApp({
         if (member.role !== 'admin') fail(403, 'Admin access required.');
         const name = text('name', 100),
           driverId = text('driverId'),
-          capacity = body.capacity;
+          capacity = body.capacity,
+          vehicleType = body.vehicleType ?? '';
+        if (!VEHICLE_TYPES.includes(vehicleType)) fail(400, 'Choose bus, shuttle van, or not set.');
         const driver = membership(driverId, org);
         if (!driver || driver.role !== 'driver' || !driver.approved)
           fail(400, 'Choose an approved driver in this institution.');
@@ -578,8 +580,8 @@ export function createApp({
           fail(400, 'Choose a route in this institution.');
         const id = randomUUID();
         db.prepare(
-          'INSERT INTO trips(id,institution_id,driver_id,route_id,name,capacity,active) VALUES (?,?,?,?,?,?,0)',
-        ).run(id, org, driverId, routeId, name, capacity);
+          'INSERT INTO trips(id,institution_id,driver_id,route_id,name,capacity,vehicle_type,active) VALUES (?,?,?,?,?,?,?,0)',
+        ).run(id, org, driverId, routeId, name, capacity, vehicleType);
         return send(201, { id });
       }
       if (path === '/requests') {
@@ -753,7 +755,7 @@ export function createApp({
             ).run(trip.id);
           else
             db.prepare(
-              "UPDATE trips SET active=0,progress_position=NULL,progress_at=NULL,progress_route_id=NULL,lat=NULL,lng=NULL,accuracy=NULL,updated_at=NULL,delay_minutes=0,issue='',onboard=0,onboard_updated_at=NULL WHERE id=?",
+              "UPDATE trips SET active=0,progress_position=NULL,progress_at=NULL,progress_route_id=NULL,lat=NULL,lng=NULL,accuracy=NULL,heading=NULL,updated_at=NULL,delay_minutes=0,issue='',onboard=0,onboard_updated_at=NULL WHERE id=?",
             ).run(trip.id);
         } else if (path === '/trips/location') {
           if (!trip.active) fail(409, 'Start service first.');
@@ -776,13 +778,19 @@ export function createApp({
             accuracy > 100
           )
             fail(400, 'Location accuracy must be within 100 meters.');
-          db.prepare('UPDATE trips SET lat=?,lng=?,accuracy=?,updated_at=? WHERE id=?').run(
-            lat,
-            lng,
-            accuracy,
-            capturedAt,
-            trip.id,
-          );
+          // Heading only from the device, only when valid and moving (below about 1 m/s GPS
+          // headings are noise); otherwise none is stored and the map keeps the icon upright.
+          const heading =
+            Number.isFinite(body.heading) &&
+            body.heading >= 0 &&
+            body.heading < 360 &&
+            Number.isFinite(body.speed) &&
+            body.speed >= 1
+              ? body.heading
+              : null;
+          db.prepare(
+            'UPDATE trips SET lat=?,lng=?,accuracy=?,heading=?,updated_at=? WHERE id=?',
+          ).run(lat, lng, accuracy, heading, capturedAt, trip.id);
           // Stop passage at confirmed pins: progress, travel-time history, approach alerts.
           const passed = eta.onFix(trip, { lat, lng, accuracy, capturedAt });
           if (passed) service.approach(trip, passed, eta);

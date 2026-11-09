@@ -12,11 +12,11 @@ Default server: port 4000, bound to 0.0.0.0. JSON requests/responses. Protected 
 | GET    | `/me`              | —                                                     | Current user's profile and institution memberships                                                                                                |
 | GET    | `/snapshot`        | `?institutionId=...`                                  | Role-scoped current data                                                                                                                          |
 | POST   | `/stops`           | institutionId, name, lat, lng                         | Institution administrator                                                                                                                         |
-| POST   | `/trips`           | institutionId, name, driverId, capacity               | Administrator; approved same-institution driver                                                                                                   |
+| POST   | `/trips`           | institutionId, name, driverId, capacity, vehicleType  | Administrator; approved same-institution driver. vehicleType optional: `bus`, `shuttle` or blank (not set)                                        |
 | POST   | `/requests`        | institutionId, tripId, stopId, destinationId          | Approved student                                                                                                                                  |
 | POST   | `/requests/status` | institutionId, requestId, status                      | Owner cancellation or assigned driver/admin lifecycle                                                                                             |
 | POST   | `/trips/service`   | institutionId, tripId, active (boolean)               | Assigned driver/admin                                                                                                                             |
-| POST   | `/trips/location`  | institutionId, tripId, lat, lng, accuracy, capturedAt | Assigned driver/admin; active service; timestamp epoch ms                                                                                         |
+| POST   | `/trips/location`  | institutionId, tripId, lat, lng, accuracy, capturedAt | Assigned driver/admin; active service; timestamp epoch ms. Optional heading (0–359.9°) and speed (m/s): heading kept only if speed ≥ 1            |
 | POST   | `/trips/issue`     | institutionId, tripId, delayMinutes (0–240), issue    | Assigned driver/admin                                                                                                                             |
 | POST   | `/shares`          | institutionId, email, revoke (optional boolean)       | Student-owned grant to approved parent                                                                                                            |
 | POST   | `/members/approve` | institutionId, userId                                 | Institution administrator                                                                                                                         |
@@ -51,6 +51,7 @@ The channel supports one institution per connection. Pending members can subscri
 - `ALLOW_LOCAL_HTTP`: native build flag, 1 only for the local-network internal build; production profile forces 0
 - `EXPO_PUBLIC_API_URL`: developer-configured backend origin for installed apps; Expo development may derive the API host automatically. There is no user server-entry screen.
 - Maps use MapLibre with OpenFreeMap tiles; no map API key is needed.
+- Map markers are inline SVG inside the shared map document (`src/components/mapHtml.ts`, served to the website as `public/map.html`), so they need no native module. Snapshot trips carry `vehicle_type` and `heading` (null unless the last fix reported a valid heading while moving; cleared when service ends). The viewer's own location for the blue dot is read on the device after they tap the map's location button and is passed only to the local map; it is never sent to the API.
 
 `npm run setup` is the trusted local operator bootstrap path. There is no public administrator-signup or institution-creation API.
 
@@ -80,7 +81,7 @@ All are institution-scoped (`institutionId` in the body or query) and require an
 - `POST /alerts` (admin): `severity` (`info`|`delay`|`interruption`), `title`, `body`, optional `routeId`, `startsAt`, `endsAt`. Delays and interruptions that apply now are pushed to followers of the route and riders on it (or all students and parents for institution-wide alerts) who have service alerts on. `POST /alerts/resolve`.
 - `POST /stops/details` (admin): `stopId`, `name`, `description` (≤500), `accessibility` (≤300), `amenities` (`[{key, detail}]` from `server/catalog.json`). Clears verification. `POST /stops/verify` (admin, confirmed stops only).
 - `POST /stops/photo` (admin): `stopId`, `contentType` (JPEG/PNG/WebP, checked against the bytes), base64 `data` ≤900 KB. `POST /stops/photo/delete`. `GET /stops/photo?stopId=` returns `{contentType,data,updatedAt}` (confirmed stops; admins see drafts).
-- `POST /trips/vehicle` (admin): `tripId`, `capacity` (1–100), `features` (from the catalog).
+- `POST /trips/vehicle` (admin): `tripId`, `capacity` (1–100), `features` (from the catalog), optional `vehicleType` (`bus`, `shuttle`, or `''` for not set; omitted keeps the saved type). The map draws a bus or van silhouette only from this saved value.
 - `POST /trips/onboard` (assigned driver or admin, in service): `tripId`, `count` (0–200). Boarded +1 and arrived −1 adjust it automatically.
 - `POST /requests/status` also accepts `reason: 'no_show'` for driver/admin cancellations; requests record `cancel_reason` (`rider`, `driver`, `no_show`, `expired`, `access_removed`). Unaccepted requests are cancelled after the expiry window, checked every minute.
 - `GET /schedule?date=YYYY-MM-DD`: `{configured:false}` until a time zone is set; otherwise the day's periods, closures/notes (next 120 days), raw departures and, per route, departure instants (DST-aware).

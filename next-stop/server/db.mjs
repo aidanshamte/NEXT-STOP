@@ -143,6 +143,13 @@ const migrations = [
     CREATE INDEX estimate_checks_open ON estimate_checks(trip_id,target_position) WHERE resolved_at IS NULL;
     CREATE INDEX estimate_checks_org ON estimate_checks(institution_id,route_id,made_at);`);
   },
+  // 9: map markers. The vehicle type an administrator saved (blank until set; the map never
+  // guesses it) and the GPS heading of the latest fix, kept only when the device reported a
+  // valid heading while moving.
+  (db) => {
+    db.exec(`ALTER TABLE trips ADD COLUMN vehicle_type TEXT NOT NULL DEFAULT '' CHECK(vehicle_type IN ('','bus','shuttle'));
+    ALTER TABLE trips ADD COLUMN heading REAL;`);
+  },
 ];
 // Statuses in which a request holds a place and blocks a new request by the same student.
 export const OPEN_STATUSES = ['requested', 'accepted', 'approaching', 'boarded'];

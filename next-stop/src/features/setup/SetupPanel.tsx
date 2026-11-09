@@ -3,7 +3,8 @@ import { Pressable, Text, View } from 'react-native';
 import { C } from '../../components/Brand';
 import { Button, Card, Field, Icon, StatusChip, s } from '../../components/UI';
 import { vehicleFeatureLabels } from '../../catalog';
-import type { Snapshot, Trip } from '../../domain';
+import { VEHICLE_TYPES } from '../../domain';
+import type { Snapshot, Trip, VehicleType } from '../../domain';
 import type { Mutate } from '../workspace/types';
 
 const deviceZone = () => {
@@ -120,10 +121,29 @@ export default function SetupPanel({
 function VehicleEditor({ trip, busy, mutate }: { trip: Trip; busy: boolean; mutate: Mutate }) {
   const [capacity, setCapacity] = useState(String(trip.capacity));
   const [features, setFeatures] = useState<string[]>(trip.features || []);
+  const [vehicleType, setVehicleType] = useState<VehicleType>(trip.vehicle_type || '');
   return (
     <View style={s.request}>
       <Text style={s.heading}>{trip.name}</Text>
       <Field label="Rider seats" value={capacity} onChange={setCapacity} />
+      <Text style={s.label}>VEHICLE TYPE (MAP ICON)</Text>
+      <View style={s.pills} accessibilityRole="radiogroup">
+        {VEHICLE_TYPES.map((t) => {
+          const on = vehicleType === t.value;
+          return (
+            <Pressable
+              key={t.value || 'none'}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on }}
+              aria-checked={on}
+              onPress={() => setVehicleType(t.value)}
+              style={[s.pill, on && s.pillActive]}
+            >
+              <Text style={[s.pillText, on && { color: 'white' }]}>{t.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
       <View style={s.pills}>
         {Object.entries(vehicleFeatureLabels).map(([key, label]) => {
           const on = features.includes(key);
@@ -150,7 +170,7 @@ function VehicleEditor({ trip, busy, mutate }: { trip: Trip; busy: boolean; muta
         onPress={() =>
           void mutate(
             '/trips/vehicle',
-            { tripId: trip.id, capacity: Number(capacity), features },
+            { tripId: trip.id, capacity: Number(capacity), features, vehicleType },
             `${trip.name} updated.`,
           )
         }

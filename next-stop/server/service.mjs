@@ -16,6 +16,8 @@ import {
 
 export const AMENITIES = Object.keys(catalog.amenities);
 export const VEHICLE_FEATURES = Object.keys(catalog.vehicleFeatures);
+// Vehicle types an administrator can save; blank means not set. The map never infers one.
+export const VEHICLE_TYPES = ['', 'bus', 'shuttle'];
 export const PHOTO_LIMIT = 900 * 1024;
 const PHOTO_TYPES = {
   'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
@@ -554,9 +556,13 @@ export function createService({ db, push, clock, fail }) {
           new Set(features).size !== features.length
         )
           fail(400, 'Invalid vehicle features.');
-        db.prepare('UPDATE trips SET capacity=?,features=? WHERE id=?').run(
+        // Optional, so older clients that only send seats and features keep the saved type.
+        const vehicleType = body.vehicleType ?? trip.vehicle_type;
+        if (!VEHICLE_TYPES.includes(vehicleType)) fail(400, 'Choose bus, shuttle van, or not set.');
+        db.prepare('UPDATE trips SET capacity=?,features=?,vehicle_type=? WHERE id=?').run(
           capacity,
           JSON.stringify(features),
+          vehicleType,
           trip.id,
         );
         send(200, { ok: true });

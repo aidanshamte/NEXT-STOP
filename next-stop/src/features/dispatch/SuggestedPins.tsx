@@ -55,8 +55,6 @@ export default function SuggestedPins({
           <LiveMap
             height={200}
             stops={[{ ...stop, lat: suggestion.lat, lng: suggestion.lng, status: 'confirmed' }]}
-            trip={undefined}
-            highlight={{ pickupId: stop.id }}
           />
           <Text style={s.body}>{suggestion.basis}</Text>
           <Text style={s.caption}>

@@ -62,6 +62,8 @@ export async function startDriverGps(
           lat: location.coords.latitude,
           lng: location.coords.longitude,
           accuracy: location.coords.accuracy,
+          heading: location.coords.heading,
+          speed: location.coords.speed,
           capturedAt: location.timestamp,
         })
           .then(() =>
@@ -126,6 +128,8 @@ export async function startDriverGps(
         lat: point.coords.latitude,
         lng: point.coords.longitude,
         accuracy: point.coords.accuracy,
+        heading: point.coords.heading,
+        speed: point.coords.speed,
         capturedAt: point.timestamp,
       });
   } catch {

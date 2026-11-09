@@ -71,6 +71,7 @@ const emptyDispatchDraft: DispatchDraft = {
   longitude: '',
   vehicleName: '',
   capacity: '24',
+  vehicleType: '',
   driverId: '',
 };
 
@@ -452,10 +453,13 @@ function Workspace() {
       onOpenStop={openStop}
       stops={stops}
       trip={trip}
+      trips={trips}
+      routes={data?.routes || []}
       route={route}
       routeStops={data?.routeStops}
       highlight={
-        // Only a parent follows one rider; operators see every stop equally.
+        // Only a parent follows one rider; operators see every stop equally. (Riders' own map
+        // is in RiderHome.)
         role === 'parent' && request
           ? { pickupId: request.stop_id, destinationId: request.destination_id }
           : {}

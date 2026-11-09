@@ -4,7 +4,7 @@ import { C } from '../../components/Brand';
 import LiveMap from '../../components/LiveMap';
 import { Icon, StatusChip, s } from '../../components/UI';
 import type { Tone } from '../../components/UI';
-import { ago, locationState, routeSequence } from '../../domain';
+import { GPS_LOST_AFTER, ago, locationState, routeSequence } from '../../domain';
 import type { MapHighlight, Route, RouteStop, Stop, Trip } from '../../domain';
 
 /** GPS freshness for a vehicle, from its last reported fix only. */
@@ -15,13 +15,20 @@ export function gpsStatus(trip: Trip | undefined, now: number): { text: string; 
   if (state === 'live' && trip.updated_at)
     return { text: `${trip.name} · GPS ${ago(trip.updated_at, now)}`, tone: 'green' };
   if (state === 'stale' && trip.updated_at)
-    return { text: `${trip.name} · last GPS ${ago(trip.updated_at, now)}`, tone: 'amber' };
-  return { text: `${trip.name} · location not shared`, tone: 'gray' };
+    return now - trip.updated_at > GPS_LOST_AFTER
+      ? { text: `${trip.name} · GPS lost · last fix ${ago(trip.updated_at, now)}`, tone: 'gray' }
+      : {
+          text: `${trip.name} · Location out of date · ${ago(trip.updated_at, now)}`,
+          tone: 'amber',
+        };
+  return { text: `${trip.name} · in service, GPS not shared yet`, tone: 'gray' };
 }
 
 export default function MapCard({
   stops,
   trip,
+  trips = [],
+  routes = [],
   route,
   routeStops = [],
   highlight = {},
@@ -32,6 +39,9 @@ export default function MapCard({
   onOpenStop?: (stopId: string) => void;
   stops: Stop[];
   trip?: Trip;
+  /** Every vehicle the viewer may see; the map draws each one in service with GPS. */
+  trips?: Trip[];
+  routes?: Route[];
   route?: Route;
   routeStops?: RouteStop[];
   highlight?: MapHighlight;
@@ -42,7 +52,16 @@ export default function MapCard({
   return (
     <View style={[s.card, { padding: 0, gap: 0, overflow: 'hidden' }]}>
       <View>
-        <LiveMap stops={stops} trip={trip} highlight={highlight} now={now} />
+        <LiveMap
+          stops={stops}
+          trips={trip && !trips.some((t) => t.id === trip.id) ? [...trips, trip] : trips}
+          focusId={trip?.id}
+          routes={routes.length ? routes : route ? [route] : []}
+          routeStops={routeStops}
+          highlight={highlight}
+          now={now}
+          onOpenStop={onOpenStop}
+        />
         <View pointerEvents="none" style={{ position: 'absolute', top: 12, left: 12, right: 62 }}>
           <StatusChip text={gps.text} tone={gps.tone} solid />
         </View>

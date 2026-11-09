@@ -72,6 +72,9 @@ if (Platform.OS !== 'web')
             lat: newest.coords.latitude,
             lng: newest.coords.longitude,
             accuracy: newest.coords.accuracy,
+            // The server keeps the heading only when it is valid and the vehicle is moving.
+            heading: newest.coords.heading,
+            speed: newest.coords.speed,
             capturedAt: newest.timestamp,
           }),
           signal: AbortSignal.timeout(8000),

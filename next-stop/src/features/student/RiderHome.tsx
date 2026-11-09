@@ -125,6 +125,8 @@ export default function RiderHome({
         onOpenStop={onOpenStop}
         stops={stops}
         trip={trip}
+        trips={trips}
+        routes={routes}
         route={route}
         routeStops={routeStops}
         highlight={highlight}

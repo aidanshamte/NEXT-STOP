@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { Button, Card, Field, Tag, s } from '../../components/UI';
-import type { Member, Trip } from '../../domain';
+import { VEHICLE_TYPES, vehicleTypeLabel } from '../../domain';
+import type { Member, Trip, VehicleType } from '../../domain';
 import type { Mutate, Run } from '../workspace/types';
 
 export interface DispatchDraft {
@@ -12,6 +13,8 @@ export interface DispatchDraft {
   vehicleName: string;
   capacity: string;
   driverId: string;
+  /** Saved with the vehicle; the map draws a bus or van only from this setting. */
+  vehicleType: VehicleType;
 }
 
 export default function DispatchPanel({
@@ -39,7 +42,7 @@ export default function DispatchPanel({
 }) {
   const pending = members.filter((m) => !m.approved);
   const drivers = members.filter((m) => m.role === 'driver' && m.approved);
-  const { stopLabel, latitude, longitude, vehicleName, capacity, driverId } = draft;
+  const { stopLabel, latitude, longitude, vehicleName, capacity, driverId, vehicleType } = draft;
   return (
     <Card>
       <Text style={s.title}>Institution dispatch</Text>
@@ -95,7 +98,8 @@ export default function DispatchPanel({
             <Text style={s.heading}>{trip.name}</Text>
             <Text style={s.body}>
               {current ? `Driver: ${current.name}` : 'No driver assigned'} ·{' '}
-              {trip.active ? 'In service' : 'Not in service'} · {trip.capacity} seats
+              {trip.active ? 'In service' : 'Not in service'} · {trip.capacity} seats ·{' '}
+              {vehicleTypeLabel(trip.vehicle_type)}
             </Text>
             <View style={s.pills}>
               {drivers
@@ -173,6 +177,22 @@ export default function DispatchPanel({
         value={capacity}
         onChange={(v) => setDraft({ capacity: v })}
       />
+      <Text style={s.label}>VEHICLE TYPE (SHOWN ON THE MAP)</Text>
+      <View style={s.pills}>
+        {VEHICLE_TYPES.map((t) => (
+          <Pressable
+            key={t.value || 'none'}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: vehicleType === t.value }}
+            onPress={() => setDraft({ vehicleType: t.value })}
+            style={[s.pill, vehicleType === t.value && s.pillActive]}
+          >
+            <Text style={[s.pillText, vehicleType === t.value && { color: 'white' }]}>
+              {t.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
       <Text style={s.label}>APPROVED DRIVER</Text>
       <View style={s.pills}>
         {drivers.map((m) => (
@@ -191,7 +211,7 @@ export default function DispatchPanel({
         onPress={() =>
           mutate(
             '/trips',
-            { name: vehicleName, driverId, capacity: Number(capacity) },
+            { name: vehicleName, driverId, capacity: Number(capacity), vehicleType },
             'Shuttle assigned. The driver can now start service.',
           )
         }

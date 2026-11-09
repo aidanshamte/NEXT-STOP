@@ -61,6 +61,8 @@ To re-import after the sign changes: edit `server/imports/fairfield-university-s
 - [x] Request timeout / no-show handling with reasons (`service.test.mjs`; live expiry seen in the browser, VALIDATION 2e)
 - [x] Arrival estimates from stop-passage travel-time history, with ranges and "unavailable" states (`eta.test.mjs`, `client-logic.test.mjs`). Accuracy on real Fairfield service is not yet measured: it needs confirmed stop pins, assigned routes and several days of service
 - [x] Stop-approach notifications 1–3 stops before the rider's stop (`eta.test.mjs`)
+- [x] Map markers: saved vehicle type, route colour and name, GPS heading pointer, stale/lost/off-map states, stop signs with route numbers and on-demand badges, pickup and drop-off markers, own-location dot (device only), key (`ui-state.test.mjs`, `vehicle-markers.test.mjs`; browser run VALIDATION 2g)
+- [ ] Map markers on physical phones: ACCEPTANCE.md F7 (installed build and iPhone Expo Go)
 
 ## Milestone 3: institution operations
 

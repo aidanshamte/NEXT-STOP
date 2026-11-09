@@ -94,6 +94,22 @@ Test environment: a throwaway scratchpad database ("Test Institution", "Test Sto
 
 **Not verified:** any physical-phone behavior (ACCEPTANCE.md, including feature checks F1–F6); whether any suggested point is where Fairfield shuttles actually stop; estimate accuracy on real service.
 
+## 2g. Passed: map markers (2026-11-09, local web; production noted below)
+
+- **Automated:** `npm test` **151 tests, 0 failures** (new: `vehicle-markers.test.mjs`; map payload tests in `ui-state.test.mjs`). Lint, typecheck, Prettier. Covered: vehicle type only from the saved setting (a vehicle named "Coach 3" with no type stays "not set"); heading stored only when the device reports 0–359.9° at ≥ 1 m/s, dropped once the fix is older than 30 s, cleared when service ends; live / stale (30 s) / lost (5 min) / off-map states; shared pins within 10 m drawn once with every route number; on-demand badges; an invalid stored route colour never reaches the map; the viewer's location only with a supplied fix; no `innerHTML` or `navigator.geolocation` in the map document.
+- **Local browser** (throwaway database; Fairfield route import with six stops confirmed at their suggestion points as test data; three test vehicles: Bus 12 type bus on Campus Shuttle, Van 3 type shuttle on Town Shuttle, Stag 7 type not set, plus Spare 9 out of service; GPS posted by test driver accounts through `/trips/location`; 375 px):
+  - Three vehicles drawn with bus, van and plain-disc artwork, each ringed in its route colour with its name below; Spare 9 listed under **Key → Not on the map: not in service**, then "in service, GPS not shared yet" after its service started.
+  - Bus 12's heading pointer at 90°; Van 3 (0.3 m/s) and Stag 7 (no heading) upright with no pointer.
+  - Stops as bus-stop signs with Campus Shuttle numbers (Barone "1·3"); spoken labels such as "Bus stop: Barone Campus Center Traffic Circle. Stop 1 and 3 on Campus Shuttle."
+  - **Pickup at …** and **Drop-off at …** in the rider form turned those stops into the coral pickup pin and the chequered drop-off flag.
+  - Tapping Bus 12 opened its details (type, route, "GPS fix 4 s ago", accuracy, heading, riders on board); the age updated with the next fix. Tapping Barone's sign opened its stop details.
+  - A new fix 30 m away glided over 7 animation frames; with reduced motion emulated, the next fix jumped directly.
+  - Before the location button: no blue dot. After the button (geolocation granted, emulated fix): blue dot with a 28 px accuracy circle; **0** HTTP requests or WebSocket frames contained the position.
+  - With no fix for 38 s, Van 3 and Stag 7 turned grey with **Location out of date** while Bus 12 stayed live; after 5 min 11 s Stag 7 showed dashed with **GPS lost** and details "GPS signal lost · last fix 5 min 11 s ago".
+  - Reconnect: the rider panned the map, the API process was stopped for 16 s (header "Offline · data from 15s ago", vehicles still drawn, greyed as out of date), then restarted; the header returned to "Live" and the new fix arrived without a reload, and the panned view was unchanged.
+  - Bugs found and fixed during the run: MapLibre replaced marker labels with "Map marker"; a vehicle restyle removed MapLibre's positioning classes so it slipped under stop signs; popups and the key drew under markers.
+  - No console errors.
+
 ## 3. Not yet tested: needs the owner's accounts, money or devices
 
 - **Automatic rollback on a failing release** has not been triggered on the VM (only healthy releases were deployed). Budget/alert emails have not fired.
