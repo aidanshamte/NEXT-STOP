@@ -82,6 +82,19 @@ All are institution-scoped (`institutionId` in the body or query) and require an
 - `POST /stops/details` (admin): `stopId`, `name`, `description` (≤500), `accessibility` (≤300), `amenities` (`[{key, detail}]` from `server/catalog.json`). Clears verification. `POST /stops/verify` (admin, confirmed stops only).
 - `POST /stops/photo` (admin): `stopId`, `contentType` (JPEG/PNG/WebP, checked against the bytes), base64 `data` ≤900 KB. `POST /stops/photo/delete`. `GET /stops/photo?stopId=` returns `{contentType,data,updatedAt}` (confirmed stops; admins see drafts).
 - `POST /trips/vehicle` (admin): `tripId`, `capacity` (1–100), `features` (from the catalog), optional `vehicleType` (`bus`, `shuttle`, or `''` for not set; omitted keeps the saved type). The map draws a bus or van silhouette only from this saved value.
+  Also optional `accessRamp` and `accessSpace`: `available`, `unavailable` or `unknown` (default), as the administrator confirmed them on the vehicle. Never inferred from the type or icon. An older client ticking the "Wheelchair ramp"/"lift" feature records the ramp as available.
+
+### Boarding assistance (on the pickup request)
+
+No diagnosis is asked for. Visible only to the rider, the driver assigned to the request's shuttle now, and administrators; parents following a journey never receive it. Notifications say only "Pickup details updated" or "Staff attention needed". Notes (≤ 140 characters, only with "other") and staff messages are erased when the pickup is cancelled or completed.
+
+- `POST /requests` accepts optional `assistance: { needs, note }`, where `needs` ⊆ `ramp`, `extra_time`, `other`. Saved in the same transaction as the request.
+- `POST /requests/assistance` (the rider, before boarding): `requestId`, `baseVersion`, `assistance`. Empty `needs` removes it. Each change increments the version and requires a new acknowledgement. Resending the same content is a no-op (200, `changed: false`); a different change against an old version gets 409.
+- `POST /requests/assistance/ack` and `/requests/assistance/unable` (only the driver assigned now): `requestId`, `version`. A stale version gets 409. "Unable" alerts administrators and tells the rider. Repeats are no-ops.
+- `POST /requests/assistance/resolve` (admin): `requestId`, `version`, `message` (≤ 200, shown to the rider), `outcome` `resolved` or `driver_review` (asks the driver to acknowledge again).
+- Staff attention is raised when the driver is unable, or when a ramp/lift request is on a vehicle whose recorded ramp/lift or wheelchair space is not `available` (`vehicle_unavailable` or `vehicle_unknown`). It is re-evaluated when an administrator changes that record.
+- Reassigning or removing the shuttle's driver returns acknowledged or unable requests to pending for the new driver. Cancelling the pickup cancels the assistance (database trigger).
+- Snapshot field `assistance`: open requests only. An acknowledgement is reported only if it was made by the driver assigned now, for the current version.
 - `POST /trips/onboard` (assigned driver or admin, in service): `tripId`, `count` (0–200). Boarded +1 and arrived −1 adjust it automatically.
 - `POST /requests/status` also accepts `reason: 'no_show'` for driver/admin cancellations; requests record `cancel_reason` (`rider`, `driver`, `no_show`, `expired`, `access_removed`). Unaccepted requests are cancelled after the expiry window, checked every minute.
 - `GET /schedule?date=YYYY-MM-DD`: `{configured:false}` until a time zone is set; otherwise the day's periods, closures/notes (next 120 days), raw departures and, per route, departure instants (DST-aware).

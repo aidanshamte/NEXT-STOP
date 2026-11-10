@@ -62,6 +62,9 @@ export interface Trip {
   capacity: number;
   /** Saved by an administrator; blank until set. The map never infers it. */
   vehicle_type?: VehicleType;
+  /** Accessibility as an administrator recorded it; never inferred from the type or icon. */
+  access_ramp?: Capability;
+  access_space?: Capability;
   active: number;
   lat: number | null;
   lng: number | null;
@@ -231,6 +234,8 @@ export interface Snapshot {
   incidents?: Incident[];
   escorts?: Escort[];
   rides?: RideView | null;
+  /** Boarding assistance on open pickups: the rider's own, the assigned driver's, or staff. */
+  assistance?: Assistance[];
   sharedWithMe?: {
     student_id: string;
     name: string;
@@ -674,4 +679,83 @@ export function mapLabel(payload: MapPayload) {
   }
   if (payload.me) parts.push('Your location is shown.');
   return parts.join(' ');
+}
+
+// Boarding assistance, carried on the pickup request. No diagnosis is ever asked for.
+export type AssistanceNeed = 'ramp' | 'extra_time' | 'other';
+export type Capability = 'available' | 'unavailable' | 'unknown';
+export const ASSISTANCE_OPTIONS: { value: AssistanceNeed; label: string; hint: string }[] = [
+  { value: 'ramp', label: 'Ramp or lift needed', hint: 'For a wheelchair or mobility aid' },
+  { value: 'extra_time', label: 'Extra boarding time', hint: 'The driver waits while you board' },
+  { value: 'other', label: 'Other boarding assistance', hint: 'Add a brief note if you like' },
+];
+export const ASSISTANCE_NOTE_MAX = 140;
+export const capabilityLabel: Record<Capability, string> = {
+  available: 'Available',
+  unavailable: 'Not available',
+  unknown: 'Not confirmed',
+};
+export interface Assistance {
+  request_id: string;
+  needs: AssistanceNeed[];
+  note: string;
+  version: number;
+  status: 'pending' | 'acknowledged' | 'unable';
+  /** Why staff need to look: the driver can't accommodate, or the vehicle's recorded
+   * ramp/lift or wheelchair space is unavailable or not confirmed. */
+  attention: '' | 'driver_unable' | 'vehicle_unavailable' | 'vehicle_unknown';
+  ack_at: number | null;
+  unable_at: number | null;
+  staff_note: string;
+  staff_at: number | null;
+  updated_at: number;
+}
+export const needsText = (needs: AssistanceNeed[]) =>
+  needs.map((n) => ASSISTANCE_OPTIONS.find((o) => o.value === n)?.label || n).join(', ');
+
+/** What a rider, driver or staff member is told about an assistance request. Acknowledgement
+ * is described as "seen by the driver", never as a guarantee. Each state has a distinct icon
+ * and wording, so nothing depends on colour. */
+export function assistanceState(a: Assistance): {
+  title: string;
+  detail: string;
+  tone: 'amber' | 'green' | 'coral';
+  icon: 'time-outline' | 'checkmark-circle-outline' | 'alert-circle-outline';
+} {
+  const staff =
+    a.attention === 'driver_unable'
+      ? 'Staff have been alerted.'
+      : a.attention === 'vehicle_unavailable'
+        ? 'This vehicle’s record shows no ramp, lift or wheelchair space. Staff have been alerted.'
+        : a.attention === 'vehicle_unknown'
+          ? 'This vehicle’s ramp, lift or wheelchair space hasn’t been confirmed. Staff have been alerted.'
+          : '';
+  if (a.status === 'unable')
+    return {
+      title: 'Driver unable to accommodate',
+      detail: `The driver says they can’t provide this assistance. ${staff}`.trim(),
+      tone: 'coral',
+      icon: 'alert-circle-outline',
+    };
+  if (a.attention)
+    return {
+      title: 'Staff attention needed',
+      detail: `${a.status === 'acknowledged' ? 'The driver has seen your request. ' : ''}${staff}`,
+      tone: 'coral',
+      icon: 'alert-circle-outline',
+    };
+  if (a.status === 'acknowledged')
+    return {
+      title: 'Driver acknowledged',
+      detail:
+        'The driver has seen your request. This is not a guarantee that assistance is available.',
+      tone: 'green',
+      icon: 'checkmark-circle-outline',
+    };
+  return {
+    title: 'Assistance requested',
+    detail: 'Waiting for your driver to acknowledge.',
+    tone: 'amber',
+    icon: 'time-outline',
+  };
 }

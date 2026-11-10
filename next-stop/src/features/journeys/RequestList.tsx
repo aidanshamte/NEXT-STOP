@@ -4,7 +4,8 @@ import { C } from '../../components/Brand';
 import { Button, Card, Icon, Tag, s } from '../../components/UI';
 import { cancelReasonLabels } from '../../catalog';
 import { ago, isOpen, nextStatus } from '../../domain';
-import type { RideRequest, Role, Trip } from '../../domain';
+import type { Assistance, RideRequest, Role, Trip } from '../../domain';
+import OperatorAssistance from '../assistance/OperatorAssistance';
 import { Progress } from '../student/RiderHome';
 import { actionKey, statusLabels } from '../workspace/types';
 import type { Mutate } from '../workspace/types';
@@ -26,7 +27,10 @@ export default function RequestList({
   pending = '',
   mutate,
   now,
+  assistance = [],
 }: {
+  /** Boarding assistance on open pickups (only for people allowed to see it). */
+  assistance?: Assistance[];
   role: Role;
   requests: RideRequest[];
   trips: Trip[];
@@ -38,11 +42,21 @@ export default function RequestList({
 }) {
   const operator = role === 'driver' || role === 'admin';
   const open = requests.filter((r) => isOpen(r.status)).length;
-  // Open journeys first, then the most recent closed ones.
+  const helpFor = (r: RideRequest) => assistance.find((a) => a.request_id === r.id);
+  const needsStaff = (r: RideRequest) => {
+    const a = helpFor(r);
+    return !!a && (!!a.attention || a.status === 'unable');
+  };
+  const staffCount = role === 'admin' ? requests.filter(needsStaff).length : 0;
+  // Open journeys first (staff see those needing attention first), then recent closed ones.
   const ordered = requests
     .slice()
     .reverse()
-    .sort((a, b) => Number(isOpen(b.status)) - Number(isOpen(a.status)));
+    .sort(
+      (a, b) =>
+        Number(isOpen(b.status)) - Number(isOpen(a.status)) ||
+        Number(staffCount > 0 && needsStaff(b)) - Number(staffCount > 0 && needsStaff(a)),
+    );
   const change = (r: RideRequest, status: string, success: string, reason?: string) =>
     mutate('/requests/status', { requestId: r.id, status, ...(reason ? { reason } : {}) }, success);
   return (
@@ -56,6 +70,15 @@ export default function RequestList({
           tone={open ? 'coral' : 'gray'}
         />
       </View>
+      {staffCount > 0 && (
+        <View style={[s.notice, { backgroundColor: '#FFF1EE' }]} accessibilityRole="alert">
+          <Icon name="alert-circle-outline" color={C.coral} />
+          <Text style={[s.body, { flex: 1, color: C.navy }]}>
+            {staffCount} pickup{staffCount === 1 ? '' : 's'} with boarding assistance need
+            {staffCount === 1 ? 's' : ''} staff attention.
+          </Text>
+        </View>
+      )}
       {!requests.length ? (
         <View style={s.empty}>
           <Icon
@@ -88,6 +111,17 @@ export default function RequestList({
               <Text style={s.body}>
                 {stopName(r.stop_id)} → {stopName(r.destination_id)}
               </Text>
+              {operator && isOpen(r.status) && helpFor(r) && (
+                <OperatorAssistance
+                  role={role}
+                  request={r}
+                  assistance={helpFor(r) as Assistance}
+                  trip={trips.find((t) => t.id === r.trip_id)}
+                  busy={busy}
+                  pending={pending}
+                  mutate={mutate}
+                />
+              )}
               <Text style={s.caption}>
                 {trips.find((t) => t.id === r.trip_id)?.name || 'Assigned shuttle'} · updated{' '}
                 {ago(r.updated_at || r.created_at, now)}

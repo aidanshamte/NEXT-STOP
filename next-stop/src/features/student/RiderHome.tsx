@@ -1,10 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { C } from '../../components/Brand';
 import { Button, Card, Icon, SectionLabel, Tag, s } from '../../components/UI';
 import { cancelReasonLabels } from '../../catalog';
 import { ago, isBoardable, lifecycle, routeSequence } from '../../domain';
-import type { Favorite, RideRequest, Route, RouteStop, Stop, Trip } from '../../domain';
+import type { Assistance, Favorite, RideRequest, Route, RouteStop, Stop, Trip } from '../../domain';
+import AssistancePicker, {
+  assistanceBody,
+  emptyAssistance,
+  focusRing,
+} from '../assistance/AssistancePicker';
+import RiderAssistance from '../assistance/RiderAssistance';
 import SeatsLine from '../journeys/SeatsLine';
 import ArrivalLine from '../journeys/ArrivalLine';
 import MapCard from '../journeys/MapCard';
@@ -51,7 +57,10 @@ export default function RiderHome({
   expiryMinutes = 30,
   lastClosed,
   onOpenStop,
+  assistance = [],
 }: {
+  /** Boarding assistance on the rider's open pickup. */
+  assistance?: Assistance[];
   demand?: { stop_id: string; waiting: number }[];
   favorites?: Favorite[];
   expiryMinutes?: number;
@@ -76,6 +85,9 @@ export default function RiderHome({
   now: number;
 }) {
   const route = routes.find((r) => r.id === trip?.route_id);
+  // Optional boarding assistance, reviewed before the request is sent.
+  const [help, setHelp] = useState(emptyAssistance);
+  const [helpOpen, setHelpOpen] = useState(false);
   // A shuttle on a route offers that route's confirmed stops in printed order (each stop once);
   // otherwise every confirmed stop of the institution.
   const options = (
@@ -160,6 +172,13 @@ export default function RiderHome({
               onPress={() => onOpenStop(request.destination_id)}
             />
           </View>
+          <RiderAssistance
+            request={request}
+            assistance={assistance.find((a) => a.request_id === request.id)}
+            busy={busy}
+            mutate={mutate}
+            now={now}
+          />
           {['requested', 'accepted', 'approaching'].includes(request.status) && (
             <Tag
               text={
@@ -297,6 +316,36 @@ export default function RiderHome({
               </View>
             </>
           )}
+          <View style={{ gap: 8 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: helpOpen }}
+              aria-expanded={helpOpen}
+              accessibilityLabel={`Boarding assistance, optional${help.needs.length ? `, ${help.needs.length} selected` : ''}`}
+              onPress={() => setHelpOpen(!helpOpen)}
+              style={(state) => [s.stopOption, focusRing(state)]}
+            >
+              <Icon name="accessibility-outline" color={C.navy} size={22} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.heading}>Boarding assistance (optional)</Text>
+                <Text style={s.caption}>
+                  {help.needs.length
+                    ? `${help.needs.length} selected · sent with your request`
+                    : 'Ramp or lift, extra boarding time, or other help'}
+                </Text>
+              </View>
+              <Icon name={helpOpen ? 'chevron-up' : 'chevron-down'} color={C.muted} size={18} />
+            </Pressable>
+            {helpOpen && (
+              <>
+                <AssistancePicker value={help} onChange={setHelp} />
+                <Text style={s.caption}>
+                  Your driver must acknowledge it. Acknowledging means they’ve seen it; it isn’t a
+                  guarantee that assistance is available. You can change it until you board.
+                </Text>
+              </>
+            )}
+          </View>
           <Button
             large
             label={pickup && !blocker ? `I’m waiting at ${stopName(pickup)}` : 'I’m waiting here'}
@@ -304,13 +353,24 @@ export default function RiderHome({
             icon="hand-left-outline"
             loading={requesting}
             disabled={busy || !!blocker}
-            onPress={() =>
-              mutate(
+            onPress={async () => {
+              const ok = await mutate(
                 '/requests',
-                { tripId: trip?.id, stopId: pickup, destinationId: destination },
-                'Pickup requested. Wait for the driver to accept.',
-              )
-            }
+                {
+                  tripId: trip?.id,
+                  stopId: pickup,
+                  destinationId: destination,
+                  ...(help.needs.length ? { assistance: assistanceBody(help) } : {}),
+                },
+                help.needs.length
+                  ? 'Pickup requested with boarding assistance. Wait for the driver to accept and acknowledge.'
+                  : 'Pickup requested. Wait for the driver to accept.',
+              );
+              if (ok) {
+                setHelp(emptyAssistance);
+                setHelpOpen(false);
+              }
+            }}
           />
           <View style={[s.row, { alignItems: 'flex-start', justifyContent: 'flex-start' }]}>
             <Icon name="information-circle-outline" size={18} color={C.muted} />

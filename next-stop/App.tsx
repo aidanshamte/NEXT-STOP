@@ -428,6 +428,7 @@ function Workspace() {
   const requestList = (
     <RequestList
       role={role}
+      assistance={data?.assistance}
       requests={data?.requests || []}
       trips={trips}
       stopName={stopName}
@@ -472,6 +473,7 @@ function Workspace() {
       <>
         {alertBanners}
         <RiderHome
+          assistance={data?.assistance}
           demand={data?.demand}
           favorites={data?.favorites}
           expiryMinutes={data?.settings?.request_expiry_minutes}

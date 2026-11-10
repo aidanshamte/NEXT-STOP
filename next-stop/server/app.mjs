@@ -10,6 +10,7 @@ import { createService, VEHICLE_TYPES } from './service.mjs';
 import { createEta } from './eta.mjs';
 import { createSafety } from './safety.mjs';
 import { createSuggestions } from './suggestions.mjs';
+import { createAssistance } from './assistance.mjs';
 
 const OPEN_SQL = OPEN_STATUSES.map((v) => `'${v}'`).join(',');
 const firstName = (name) =>
@@ -99,7 +100,14 @@ export function createApp({
   const fail = (status, message) => {
     throw Object.assign(new Error(message), { status });
   };
-  const service = createService({ db, push, clock, fail });
+  const service = createService({
+    db,
+    push,
+    clock,
+    fail,
+    hooks: { vehicleAccessChanged: (tripId) => assistance.vehicleChanged(tripId) },
+  });
+  const assistance = createAssistance({ db, push, clock, fail });
   const eta = createEta({ db, clock });
   const suggestions = createSuggestions({
     db,
@@ -299,7 +307,9 @@ export function createApp({
           safety.forget(uid);
           // Ride history is personal data: removed with the account, not anonymised.
           db.prepare('DELETE FROM requests WHERE student_id=?').run(uid);
+          const driven = db.prepare('SELECT id FROM trips WHERE driver_id=?').all(uid);
           db.prepare('UPDATE trips SET driver_id=NULL WHERE driver_id=?').run(uid);
+          for (const t of driven) assistance.driverChanged(t.id);
           db.prepare('DELETE FROM memberships WHERE user_id=?').run(uid);
           db.prepare('DELETE FROM email_codes WHERE email=?').run(user.email);
           db.prepare('DELETE FROM mail_limits WHERE email=?').run(user.email);
@@ -378,7 +388,7 @@ export function createApp({
           .filter((entry) => visibleStop.has(entry.stop_id));
         let trips = db
           .prepare(
-            "SELECT id,institution_id,driver_id,route_id,name,capacity,vehicle_type,active,lat,lng,accuracy,heading,updated_at,delay_minutes,issue,onboard,onboard_updated_at,onboard_source,features,progress_position,progress_at,progress_route_id,(SELECT count(*) FROM requests r WHERE r.trip_id=trips.id AND r.status IN ('accepted','approaching')) AS reserved FROM trips WHERE institution_id=?",
+            "SELECT id,institution_id,driver_id,route_id,name,capacity,vehicle_type,access_ramp,access_space,active,lat,lng,accuracy,heading,updated_at,delay_minutes,issue,onboard,onboard_updated_at,onboard_source,features,progress_position,progress_at,progress_route_id,(SELECT count(*) FROM requests r WHERE r.trip_id=trips.id AND r.status IN ('accepted','approaching')) AS reserved FROM trips WHERE institution_id=?",
           )
           .all(org)
           .map((t) => {
@@ -461,6 +471,8 @@ export function createApp({
           routeStops,
           ...service.snapshotExtras({ member, org, uid }),
           ...safety.snapshotExtras({ member, org, uid }),
+          // Boarding assistance: the rider's own, the assigned driver's shuttles, or staff.
+          assistance: assistance.forSnapshot(member, requests, trips),
           sharedWithMe,
         });
       }
@@ -468,6 +480,7 @@ export function createApp({
       const context = { path, method: req.method, body, url, uid, member, org, send, text };
       if (await service.handle(context)) return;
       if (await safety.handle(context)) return;
+      if (await assistance.handle(context)) return;
       if (path === '/estimates/accuracy' && req.method === 'GET') {
         // Measured against real passages only; see eta.mjs.
         if (member.role !== 'admin') fail(403, 'Admin access required.');
@@ -619,11 +632,21 @@ export function createApp({
           )
           .get(uid, org);
         if (existing) fail(409, 'You already have an active request.');
+        const help = assistance.parse(body.assistance);
         const id = randomUUID();
         const now = clock();
-        db.prepare(
-          'INSERT INTO requests(id,institution_id,student_id,trip_id,stop_id,destination_id,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
-        ).run(id, org, uid, trip.id, stopId, destinationId, 'requested', now, now);
+        db.exec('BEGIN IMMEDIATE');
+        try {
+          db.prepare(
+            'INSERT INTO requests(id,institution_id,student_id,trip_id,stop_id,destination_id,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
+          ).run(id, org, uid, trip.id, stopId, destinationId, 'requested', now, now);
+          if (help.needs.length)
+            assistance.save({ id, institution_id: org, student_id: uid }, trip, help, 0);
+          db.exec('COMMIT');
+        } catch (error) {
+          db.exec('ROLLBACK');
+          throw error;
+        }
         if (trip.driver_id)
           push.notify([
             {
@@ -729,6 +752,8 @@ export function createApp({
             fail(400, 'Choose an approved driver in this institution.');
           // Handover keeps trip state; the new driver's device must start its own GPS.
           db.prepare('UPDATE trips SET driver_id=? WHERE id=?').run(driverId, trip.id);
+          // Boarding assistance must be acknowledged again by the new driver.
+          if (driverId !== trip.driver_id) assistance.driverChanged(trip.id);
           return send(200, { ok: true });
         }
         if (member.role !== 'admin' && !(member.role === 'driver' && trip.driver_id === uid))
@@ -944,10 +969,14 @@ export function createApp({
             'DELETE FROM shares WHERE institution_id=? AND (student_id=? OR parent_id=?)',
           ).run(org, target, target);
           // A revoked driver loses the vehicle immediately; their GPS uploads are rejected.
+          const driven = db
+            .prepare('SELECT id FROM trips WHERE institution_id=? AND driver_id=?')
+            .all(org, target);
           db.prepare('UPDATE trips SET driver_id=NULL WHERE institution_id=? AND driver_id=?').run(
             org,
             target,
           );
+          for (const t of driven) assistance.driverChanged(t.id);
           db.prepare('DELETE FROM memberships WHERE user_id=? AND institution_id=?').run(
             target,
             org,

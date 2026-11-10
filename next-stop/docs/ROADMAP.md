@@ -63,6 +63,8 @@ To re-import after the sign changes: edit `server/imports/fairfield-university-s
 - [x] Stop-approach notifications 1–3 stops before the rider's stop (`eta.test.mjs`)
 - [x] Map markers: saved vehicle type, route colour and name, GPS heading pointer, stale/lost/off-map states, stop signs with route numbers and on-demand badges, pickup and drop-off markers, own-location dot (device only), key (`ui-state.test.mjs`, `vehicle-markers.test.mjs`; browser run VALIDATION 2g)
 - [ ] Map markers on physical phones: ACCEPTANCE.md F7 (installed build and iPhone Expo Go)
+- [x] Boarding assistance on the pickup request, with driver acknowledgement, staff resolution and administrator-confirmed vehicle accessibility (`assistance.test.mjs`, `assistance-ui.test.mjs`; browser run VALIDATION 2h)
+- [ ] Boarding assistance on physical phones, with VoiceOver/TalkBack and large text: ACCEPTANCE.md F8
 
 ## Milestone 3: institution operations
 

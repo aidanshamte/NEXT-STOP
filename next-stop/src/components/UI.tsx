@@ -120,6 +120,7 @@ export function Field({
   secure = false,
   placeholder = '',
   keyboardType = 'default',
+  maxLength,
 }: {
   label: string;
   value: string;
@@ -127,6 +128,7 @@ export function Field({
   secure?: boolean;
   placeholder?: string;
   keyboardType?: 'default' | 'email-address';
+  maxLength?: number;
 }) {
   return (
     <View style={{ gap: 7, marginBottom: 14 }}>
@@ -139,6 +141,7 @@ export function Field({
         placeholder={placeholder}
         autoCapitalize={secure || keyboardType === 'email-address' ? 'none' : 'sentences'}
         keyboardType={keyboardType}
+        maxLength={maxLength}
         style={s.input}
         placeholderTextColor="#97A2AC"
       />

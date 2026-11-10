@@ -150,6 +150,44 @@ const migrations = [
     db.exec(`ALTER TABLE trips ADD COLUMN vehicle_type TEXT NOT NULL DEFAULT '' CHECK(vehicle_type IN ('','bus','shuttle'));
     ALTER TABLE trips ADD COLUMN heading REAL;`);
   },
+  // 10: boarding assistance on the existing pickup request, and administrator-confirmed
+  // vehicle accessibility (available / unavailable / unknown; never inferred). A vehicle whose
+  // administrator had ticked "Wheelchair ramp" or "Wheelchair lift" starts as available.
+  // Assistance rows close with their request: cancelling the pickup cancels the assistance,
+  // and the rider's note and any staff message are erased when the request ends.
+  (db) => {
+    db.exec(`ALTER TABLE trips ADD COLUMN access_ramp TEXT NOT NULL DEFAULT 'unknown' CHECK(access_ramp IN ('available','unavailable','unknown'));
+    ALTER TABLE trips ADD COLUMN access_space TEXT NOT NULL DEFAULT 'unknown' CHECK(access_space IN ('available','unavailable','unknown'));
+    UPDATE trips SET access_ramp='available' WHERE features LIKE '%"ramp"%' OR features LIKE '%"lift"%';
+    CREATE TABLE request_assistance(
+      request_id TEXT PRIMARY KEY REFERENCES requests(id) ON DELETE CASCADE,
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      needs TEXT NOT NULL,
+      note TEXT NOT NULL DEFAULT '',
+      version INTEGER NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('pending','acknowledged','unable','withdrawn','cancelled','closed')),
+      attention TEXT NOT NULL DEFAULT '' CHECK(attention IN ('','driver_unable','vehicle_unavailable','vehicle_unknown')),
+      ack_by TEXT,
+      ack_version INTEGER,
+      ack_at INTEGER,
+      unable_by TEXT,
+      unable_at INTEGER,
+      staff_note TEXT NOT NULL DEFAULT '',
+      staff_by TEXT,
+      staff_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL);
+    CREATE INDEX request_assistance_org ON request_assistance(institution_id,status);
+    CREATE TRIGGER request_assistance_close AFTER UPDATE OF status ON requests
+      WHEN NEW.status IN ('cancelled','arrived') BEGIN
+        UPDATE request_assistance
+          SET status=CASE WHEN NEW.status='cancelled' THEN 'cancelled' ELSE 'closed' END,
+              note='',staff_note='',attention='',updated_at=COALESCE(NEW.updated_at,OLD.updated_at)
+          WHERE request_id=NEW.id AND status IN ('pending','acknowledged','unable');
+        UPDATE request_assistance SET note='',staff_note=''
+          WHERE request_id=NEW.id AND (note<>'' OR staff_note<>'');
+      END;`);
+  },
 ];
 // Statuses in which a request holds a place and blocks a new request by the same student.
 export const OPEN_STATUSES = ['requested', 'accepted', 'approaching', 'boarded'];

@@ -43,7 +43,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     slug: 'next-stop',
     owner: 'aidanshamte',
     scheme: 'nextstop',
-    version: '0.5.2',
+    version: '0.5.3',
     orientation: 'portrait',
     userInterfaceStyle: 'light',
     icon: './assets/icon.png',
@@ -65,7 +65,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       package: APP_ID,
-      versionCode: 4,
+      versionCode: 5,
       // Inherited from libraries but unused; blocking them keeps privacy disclosures accurate.
       blockedPermissions: [
         'android.permission.SYSTEM_ALERT_WINDOW',

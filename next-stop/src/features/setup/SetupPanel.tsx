@@ -3,8 +3,9 @@ import { Pressable, Text, View } from 'react-native';
 import { C } from '../../components/Brand';
 import { Button, Card, Field, Icon, StatusChip, s } from '../../components/UI';
 import { vehicleFeatureLabels } from '../../catalog';
-import { VEHICLE_TYPES } from '../../domain';
-import type { Snapshot, Trip, VehicleType } from '../../domain';
+import { VEHICLE_TYPES, capabilityLabel } from '../../domain';
+import type { Capability, Snapshot, Trip, VehicleType } from '../../domain';
+import { spaceKey } from '../assistance/AssistancePicker';
 import type { Mutate } from '../workspace/types';
 
 const deviceZone = () => {
@@ -122,6 +123,8 @@ function VehicleEditor({ trip, busy, mutate }: { trip: Trip; busy: boolean; muta
   const [capacity, setCapacity] = useState(String(trip.capacity));
   const [features, setFeatures] = useState<string[]>(trip.features || []);
   const [vehicleType, setVehicleType] = useState<VehicleType>(trip.vehicle_type || '');
+  const [accessRamp, setAccessRamp] = useState<Capability>(trip.access_ramp || 'unknown');
+  const [accessSpace, setAccessSpace] = useState<Capability>(trip.access_space || 'unknown');
   return (
     <View style={s.request}>
       <Text style={s.heading}>{trip.name}</Text>
@@ -145,24 +148,34 @@ function VehicleEditor({ trip, busy, mutate }: { trip: Trip; busy: boolean; muta
         })}
       </View>
       <View style={s.pills}>
-        {Object.entries(vehicleFeatureLabels).map(([key, label]) => {
-          const on = features.includes(key);
-          return (
-            <Pressable
-              key={key}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: on }}
-              aria-checked={on}
-              onPress={() =>
-                setFeatures(on ? features.filter((f) => f !== key) : [...features, key])
-              }
-              style={[s.pill, on && s.pillActive]}
-            >
-              <Text style={[s.pillText, on && { color: 'white' }]}>{label}</Text>
-            </Pressable>
-          );
-        })}
+        {Object.entries(vehicleFeatureLabels)
+          // Ramp and lift are recorded below with three states, not as a tick.
+          .filter(([key]) => accessRamp === 'available' || !['ramp', 'lift'].includes(key))
+          .map(([key, label]) => {
+            const on = features.includes(key);
+            return (
+              <Pressable
+                key={key}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: on }}
+                aria-checked={on}
+                onPress={() =>
+                  setFeatures(on ? features.filter((f) => f !== key) : [...features, key])
+                }
+                style={[s.pill, on && s.pillActive]}
+              >
+                <Text style={[s.pillText, on && { color: 'white' }]}>{label}</Text>
+              </Pressable>
+            );
+          })}
       </View>
+      <CapabilityChoice label="RAMP OR LIFT" value={accessRamp} onChange={setAccessRamp} />
+      <CapabilityChoice label="WHEELCHAIR SPACE" value={accessSpace} onChange={setAccessSpace} />
+      <Text style={s.caption}>
+        Set only what you have confirmed on the vehicle. Riders who need a ramp or lift on a vehicle
+        that isn’t confirmed for both are flagged to staff. The vehicle type and map icon never
+        imply accessibility.
+      </Text>
       <Button
         secondary
         label="Save vehicle"
@@ -170,11 +183,56 @@ function VehicleEditor({ trip, busy, mutate }: { trip: Trip; busy: boolean; muta
         onPress={() =>
           void mutate(
             '/trips/vehicle',
-            { tripId: trip.id, capacity: Number(capacity), features, vehicleType },
+            {
+              tripId: trip.id,
+              capacity: Number(capacity),
+              features,
+              vehicleType,
+              accessRamp,
+              accessSpace,
+            },
             `${trip.name} updated.`,
           )
         }
       />
     </View>
+  );
+}
+
+function CapabilityChoice({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: Capability;
+  onChange: (v: Capability) => void;
+}) {
+  return (
+    <>
+      <Text style={s.label}>{label}</Text>
+      <View style={s.pills} accessibilityRole="radiogroup" aria-label={label}>
+        {(['available', 'unavailable', 'unknown'] as Capability[]).map((v) => {
+          const on = value === v;
+          return (
+            <Pressable
+              key={v}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on }}
+              aria-checked={on}
+              accessibilityLabel={`${label.toLowerCase()}: ${capabilityLabel[v]}`}
+              onPress={() => onChange(v)}
+              {...spaceKey(() => onChange(v))}
+              style={[s.pill, on && s.pillActive]}
+            >
+              <Text style={[s.pillText, on && { color: 'white' }]}>
+                {on ? '✓ ' : ''}
+                {capabilityLabel[v]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </>
   );
 }

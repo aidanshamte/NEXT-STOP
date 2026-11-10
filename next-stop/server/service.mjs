@@ -18,6 +18,7 @@ export const AMENITIES = Object.keys(catalog.amenities);
 export const VEHICLE_FEATURES = Object.keys(catalog.vehicleFeatures);
 // Vehicle types an administrator can save; blank means not set. The map never infers one.
 export const VEHICLE_TYPES = ['', 'bus', 'shuttle'];
+export const ACCESS_STATES = ['available', 'unavailable', 'unknown'];
 export const PHOTO_LIMIT = 900 * 1024;
 const PHOTO_TYPES = {
   'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
@@ -35,7 +36,7 @@ const PREF_COLUMNS = {
 const DEFAULT_PREFS = { trip_updates: 1, delay_alerts: 1, service_alerts: 1, approach_stops: 1 };
 const WAITING = "('requested','accepted','approaching')";
 
-export function createService({ db, push, clock, fail }) {
+export function createService({ db, push, clock, fail, hooks = {} }) {
   const settings = (org) => {
     const row = db
       .prepare(
@@ -559,12 +560,25 @@ export function createService({ db, push, clock, fail }) {
         // Optional, so older clients that only send seats and features keep the saved type.
         const vehicleType = body.vehicleType ?? trip.vehicle_type;
         if (!VEHICLE_TYPES.includes(vehicleType)) fail(400, 'Choose bus, shuttle van, or not set.');
-        db.prepare('UPDATE trips SET capacity=?,features=?,vehicle_type=? WHERE id=?').run(
-          capacity,
-          JSON.stringify(features),
-          vehicleType,
-          trip.id,
-        );
+        // Accessibility as the administrator confirmed it: available, unavailable or unknown.
+        // Optional for the same reason; the map icon or type never implies it.
+        // An older client's ticked "Wheelchair ramp"/"lift" is that administrator confirming one.
+        const accessRamp =
+          body.accessRamp ??
+          (features.some((f) => ['ramp', 'lift'].includes(f)) ? 'available' : trip.access_ramp);
+        const accessSpace = body.accessSpace ?? trip.access_space;
+        if (![accessRamp, accessSpace].every((v) => ACCESS_STATES.includes(v)))
+          fail(400, 'Choose available, unavailable or unknown.');
+        // A ramp or lift listed as a feature only while it is confirmed available.
+        const kept =
+          accessRamp === 'available'
+            ? features
+            : features.filter((f) => !['ramp', 'lift'].includes(f));
+        db.prepare(
+          'UPDATE trips SET capacity=?,features=?,vehicle_type=?,access_ramp=?,access_space=? WHERE id=?',
+        ).run(capacity, JSON.stringify(kept), vehicleType, accessRamp, accessSpace, trip.id);
+        if (accessRamp !== trip.access_ramp || accessSpace !== trip.access_space)
+          hooks.vehicleAccessChanged?.(trip.id);
         send(200, { ok: true });
         return true;
       }

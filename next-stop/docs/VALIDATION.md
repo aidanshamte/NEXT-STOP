@@ -115,6 +115,35 @@ Test environment: a throwaway scratchpad database ("Test Institution", "Test Sto
 
 **Not verified:** markers on a physical iPhone in Expo Go or on an installed Android build (ACCEPTANCE.md F7); real driver GPS headings; Reduce Motion as set on a phone (only emulated in Chrome).
 
+## 2h. Passed: boarding assistance (2026-11-10, local web; production noted below)
+
+- **Automated:** `npm test` **169 tests, 0 failures** (new: `assistance.test.mjs`, `assistance-ui.test.mjs`). Lint, typecheck, Prettier. Covered:
+  - Validation: only the three options; no other fields; note ≤ 140 characters. An invalid request creates nothing.
+  - Visibility: rider, assigned driver and administrators only. Not another rider, not an unassigned driver, not a parent who follows the journey. Another institution's admin or driver gets 404/403.
+  - Roles: only the rider edits. Only the driver assigned now acknowledges or reports unable; administrators and riders cannot acknowledge.
+  - Versions: stale acknowledgements get 409. Repeated acknowledgements and saves are no-ops. A different change against an old version gets 409.
+  - Changed needs require renewed acknowledgement.
+  - Handover: the new driver must acknowledge, and the former driver loses access.
+  - Routing to staff: ramp requests on vehicles whose ramp/lift or wheelchair space is unknown or unavailable, re-evaluated when the record changes. "Unable" alerts staff. Staff resolve with a message, or send the request back to the driver.
+  - Ending: withdrawing assistance; no changes after boarding. Cancelling the pickup cancels the assistance and erases the note; completing the ride closes it and erases the note. Account deletion removes it.
+  - Privacy: notification titles and bodies contain no needs or notes, staff alerts go to administrators only, and request logs contain no notes.
+  - Wording: four distinct titles and icons; "acknowledged" is never worded as a guarantee.
+  - Upgrade: an older client's "Wheelchair ramp" tick still records a ramp.
+- **Local browser** (throwaway database, test accounts; rider, two drivers and an administrator each in their own tab; 375 px):
+  - Rider: chose stops, opened **Boarding assistance (optional)**, and toggled **Ramp or lift needed** with the keyboard (Space, visible 2 px focus ring). Added **Other** with a note and saw "2 selected · sent with your request" before sending.
+  - Driver: the panel appeared live above **Accept pickup**, with the needs, the note, the vehicle record ("Ramp or lift: Not confirmed") and **Staff attention needed**.
+  - Driver **Acknowledge assistance** reached the rider live; the pickup itself stayed "Pickup requested".
+  - Administrator: saw the attention banner and resolved with a message. The rider saw **Driver acknowledged**, the not-a-guarantee wording and the staff message.
+  - The rider changed their needs: the driver was asked to acknowledge again.
+  - With the rider offline, saving showed "Not saved…" and **Try again**; back online, the retry saved.
+  - With the driver offline while the rider changed the note, the driver's screen showed the current note 0.3 s after reconnecting, without a reload. The old acknowledgement version was refused (409).
+  - Handover to the second driver: the rider returned to "Assistance requested"; the first driver's screen dropped the details; the second driver acknowledged.
+  - **Unable to accommodate → Yes, alert staff**: the rider saw "Driver unable to accommodate" and the administrator's banner returned.
+  - **Cancel pickup** removed the panel from both operator screens and cleared the banner.
+  - **Setup → Vehicles** shows three-state ramp/lift and wheelchair-space choices.
+  - Bugs found and fixed during the run: Space did not toggle checkboxes or radios on the web; an empty string rendered as a text node in the operator panel.
+  - No console errors.
+
 ## 3. Not yet tested: needs the owner's accounts, money or devices
 
 - **Automatic rollback on a failing release** has not been triggered on the VM (only healthy releases were deployed). Budget/alert emails have not fired.
