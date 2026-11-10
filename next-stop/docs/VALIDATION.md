@@ -143,6 +143,10 @@ Test environment: a throwaway scratchpad database ("Test Institution", "Test Sto
   - **Setup → Vehicles** shows three-state ramp/lift and wheelchair-space choices.
   - Bugs found and fixed during the run: Space did not toggle checkboxes or radios on the web; an empty string rendered as a text node in the operator panel.
   - No console errors.
+- **Production (release `b77aefb07d7f`):** deploy workflow and CI succeeded; `/health` schema 10; `verify-web.mjs` 17/17; the four `/requests/assistance…` endpoints and the 34 earlier routes return 401 JSON signed out; the live route chunk contains the rider, driver, staff and vehicle controls. No signed-in production session was used.
+- **Android preview build 0.5.3** (versionCode 5, commit `b77aefb`) finished. Installed 0.5.2 and older apps don't have the assistance screens; they keep working because every new field is optional.
+
+**Not verified:** any physical phone (ACCEPTANCE.md F8), VoiceOver/TalkBack announcements, the largest system text size, lock-screen notification text on a device, iPhone Expo Go.
 
 ## 3. Not yet tested: needs the owner's accounts, money or devices
 
