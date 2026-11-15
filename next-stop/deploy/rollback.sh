@@ -24,6 +24,7 @@ ln -sfn "$TARGET" "$BASE/current.next"
 mv -T "$BASE/current.next" "$BASE/current"
 install -m 644 "$TARGET/deploy/systemd/next-stop.service" /etc/systemd/system/next-stop.service
 systemctl daemon-reload
+systemctl enable next-stop >/dev/null 2>&1
 systemctl restart next-stop
 for _ in $(seq 1 30); do
   if curl -sSf http://127.0.0.1:4000/health | grep -q "\"release\":\"$ID\""; then

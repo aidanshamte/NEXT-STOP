@@ -148,6 +148,23 @@ Test environment: a throwaway scratchpad database ("Test Institution", "Test Sto
 
 **Not verified:** any physical phone (ACCEPTANCE.md F8), VoiceOver/TalkBack announcements, the largest system text size, lock-screen notification text on a device, iPhone Expo Go.
 
+## 2i. Incident: API down after an automatic reboot (2026-11-14 08:30 UTC – 2026-11-15 16:29 UTC)
+
+- **Symptom:** https://nextstop.software/ returned 200 (Caddy serves the web app), but `/health`, `/auth/options` and every API route returned 502, on both hostnames. The uptime workflow failed from 2026-11-14 14:12 UTC; the last success was 06:32 UTC.
+- **Root cause:**
+  - cloud-init enables unattended upgrades with `Automatic-Reboot "true"` at 08:30 UTC.
+  - Upgrades installed on 2026-11-14 (services restarted at 06:27) required a reboot, which happened at 08:30.
+  - systemd stopped `next-stop.service` cleanly for the reboot, but the service was **disabled**: `release.sh` and `rollback.sh` restarted it on every deploy but never enabled it for boot, and cloud-init enabled only Caddy.
+  - After the reboot nothing started the API, so Caddy had no upstream. No release was involved; the last deploy was 2026-11-10.
+- **Checked (read-only, `az vm run-command`):** VM running and agent ready; data disk `/dev/sdb` mounted at `/var/lib/next-stop` (`nofail` fstab entry, 1% used); `next-stop.db` intact (last written at the clean shutdown); Caddy active; current release `b77aefb07d7f`; no crash in the API log; no out-of-memory or disk error.
+- **Restore (2026-11-15 16:29 UTC):** `systemctl enable --now next-stop` on the existing release. No data was changed, restored or reset; no infrastructure was recreated.
+- **Prevention:** `release.sh` and `rollback.sh` enable the service before every start or restart; `tests/deploy-boot.test.mjs` fails if a deploy script starts the API without enabling it while automatic reboots are configured. That test failed against the old scripts.
+- **Sign-in screen during outages:**
+  - Before: a failed `/auth/options` request was ignored and read as "Google disabled", so the screen said "Google sign-in isn't set up". A failed retry repeated the outage message in a second box, and a successful retry never cleared the first.
+  - Now: one connection message with **Try again**. A failed retry adds "Still unavailable" to the same box. A successful retry clears it. The Google notice appears only when settings loaded and report Google disabled.
+  - Browser check, local, API stopped then started: no Google notice and one message during the outage; one message plus "Still unavailable" after a failed retry; after recovery the message cleared and the Google notice appeared (local settings report it disabled); fresh load showed no error, sign-in reached the rider home, and there were no console errors.
+- **Google sign-in in production** has reported "needs Google OAuth client configuration" at every start since 2026-11-06, so `/auth/options` correctly says `googleEnabled: false`. That predates this incident and is unchanged.
+
 ## 3. Not yet tested: needs the owner's accounts, money or devices
 
 - **Automatic rollback on a failing release** has not been triggered on the VM (only healthy releases were deployed). Budget/alert emails have not fired.

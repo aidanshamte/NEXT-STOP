@@ -409,7 +409,12 @@ function Workspace() {
       <AuthScreen
         onAuthenticated={authenticated}
         initialError={startupError || error}
-        onRetry={prepareConnection}
+        onRetry={async () => {
+          await prepareConnection();
+          // Reached the server: the outage message no longer applies.
+          setStartupError('');
+          setError('');
+        }}
       />
     );
   if (!me.memberships.length)

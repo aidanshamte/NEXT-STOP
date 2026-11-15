@@ -95,6 +95,9 @@ fi
 ln -sfn "$DIR" "$BASE/current.next"
 mv -T "$BASE/current.next" "$BASE/current"
 systemctl enable --now next-stop-backup.timer >/dev/null
+# Enabled for boot: unattended upgrades reboot the VM (cloud-init, 08:30 UTC), and a service
+# that is only restarted, never enabled, stays down after that reboot (outage 2026-11-14).
+systemctl enable next-stop >/dev/null 2>&1
 systemctl restart next-stop
 systemctl reload caddy 2>/dev/null || systemctl restart caddy
 
@@ -126,6 +129,7 @@ mv -T "$BASE/current.next" "$BASE/current"
 install -m 644 "$PREVIOUS/deploy/systemd/next-stop.service" /etc/systemd/system/next-stop.service
 install -m 644 "$PREVIOUS/deploy/Caddyfile" /etc/caddy/Caddyfile
 systemctl daemon-reload
+systemctl enable next-stop >/dev/null 2>&1
 systemctl start next-stop
 systemctl reload caddy 2>/dev/null || true
 PREVIOUS_ID="$(sed -n 's/^RELEASE_ID=//p' "$PREVIOUS/release.env")"

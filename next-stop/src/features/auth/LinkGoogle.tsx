@@ -13,18 +13,22 @@ export default function LinkGoogle({
 }) {
   const [options, setOptions] = useState<AuthOptions | null>(null),
     [error, setError] = useState(''),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [failed, setFailed] = useState(false),
+    [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true;
     api<AuthOptions>('/auth/options')
       .then((value) => {
-        if (active) setOptions(value);
+        if (!active) return;
+        setOptions(value);
+        setFailed(false);
       })
-      .catch(() => {});
+      .catch(() => active && setFailed(true));
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
   if (linked) return <Text style={{ color: C.green, fontSize: 12 }}>Google account connected</Text>;
   return (
     <View style={{ gap: 9 }}>
@@ -49,6 +53,18 @@ export default function LinkGoogle({
         }}
         onError={setError}
       />
+      {failed && (
+        <Text accessibilityRole="alert" style={{ color: C.coral, fontSize: 12 }}>
+          Couldn’t load Google settings.{' '}
+          <Text
+            accessibilityRole="button"
+            onPress={() => setAttempt(attempt + 1)}
+            style={{ fontWeight: '700', textDecorationLine: 'underline' }}
+          >
+            Try again
+          </Text>
+        </Text>
+      )}
       {!!error && (
         <Text accessibilityRole="alert" style={{ color: C.coral, fontSize: 12 }}>
           {error}

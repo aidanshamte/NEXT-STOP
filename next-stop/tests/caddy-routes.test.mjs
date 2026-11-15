@@ -20,6 +20,7 @@ test('every API route is proxied on the shared web origin', () => {
     'server/realtime.mjs',
     'server/service.mjs',
     'server/safety.mjs',
+    'server/assistance.mjs',
   ]
     .map((f) => readFileSync(f, 'utf8'))
     .join('\n');

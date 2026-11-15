@@ -1,5 +1,5 @@
 import { expoGoLimits, isExpoGo } from '../../services/runtime';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -136,20 +136,57 @@ export default function AuthScreen({
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [options, setOptions] = useState<AuthOptions | null>(null),
+    // Sign-in settings: what Google availability means depends on whether they actually loaded.
+    [optionsState, setOptionsState] = useState<'loading' | 'loaded' | 'failed'>('loading'),
+    [retryFailed, setRetryFailed] = useState(false),
     [resendAt, setResendAt] = useState(0),
     [now, setNow] = useState(() => Date.now());
   const lock = useRef(false);
+  const mounted = useRef(true);
+  const loadOptions = useCallback(async () => {
+    try {
+      const value = await api<AuthOptions>('/auth/options');
+      if (!mounted.current) return false;
+      setOptions(value);
+      setOptionsState('loaded');
+      return true;
+    } catch {
+      if (mounted.current) setOptionsState('failed');
+      return false;
+    }
+  }, []);
   useEffect(() => {
-    let active = true;
+    mounted.current = true;
     api<AuthOptions>('/auth/options')
       .then((value) => {
-        if (active) setOptions(value);
+        if (!mounted.current) return;
+        setOptions(value);
+        setOptionsState('loaded');
       })
-      .catch(() => {});
+      .catch(() => mounted.current && setOptionsState('failed'));
     return () => {
-      active = false;
+      mounted.current = false;
     };
   }, []);
+  /** Retries the connection (when the app reported an outage) and the sign-in settings. A
+   * failure updates the existing message instead of adding a second one. */
+  async function retryConnection() {
+    if (lock.current) return;
+    lock.current = true;
+    setBusy(true);
+    setRetryFailed(false);
+    setOptionsState('loading');
+    try {
+      if (onRetry) await onRetry();
+      if (!(await loadOptions())) setRetryFailed(true);
+    } catch {
+      setRetryFailed(true);
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
+  const googleOff = optionsState === 'loaded' && options?.googleEnabled === false;
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -376,26 +413,31 @@ export default function AuthScreen({
                   <Text style={[a.heading, { fontSize: wide ? 33 : 29 }]}>{heading}</Text>
                   <Text style={a.description}>{description}</Text>
                 </View>
-                {!!initialError && (
-                  <View style={a.error}>
-                    <Text style={a.errorText}>{initialError}</Text>
-                    {onRetry && (
-                      <Pressable
-                        accessibilityRole="button"
-                        onPress={() =>
-                          void run(async () => {
-                            await onRetry();
-                            setOptions(await api<AuthOptions>('/auth/options'));
-                          })
-                        }
-                      >
-                        <Text
-                          style={{ color: C.coral, fontSize: 12, fontWeight: '700', marginTop: 9 }}
-                        >
-                          Try again
-                        </Text>
-                      </Pressable>
+                {/* One connection message at a time: the app's outage message if there is one,
+                    otherwise a failure to load the sign-in settings. */}
+                {(!!initialError || optionsState === 'failed') && !error && (
+                  <View style={a.error} accessibilityRole="alert">
+                    <Text style={a.errorText}>
+                      {initialError ||
+                        'We couldn’t load sign-in options. Check your internet connection and try again.'}
+                    </Text>
+                    {retryFailed && (
+                      <Text style={[a.errorText, { marginTop: 6 }]}>
+                        Still unavailable. Please try again in a moment.
+                      </Text>
                     )}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Try connecting again"
+                      disabled={busy}
+                      onPress={() => void retryConnection()}
+                    >
+                      <Text
+                        style={{ color: C.coral, fontSize: 12, fontWeight: '700', marginTop: 9 }}
+                      >
+                        {busy ? 'Trying again…' : 'Try again'}
+                      </Text>
+                    </Pressable>
                   </View>
                 )}
                 {(screen === 'signup' || screen === 'signin') && (
@@ -411,7 +453,7 @@ export default function AuthScreen({
                           process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
                           ''
                         }
-                        disabled={busy || !options?.googleEnabled}
+                        disabled={busy || optionsState !== 'loaded' || !options?.googleEnabled}
                         onCredential={async (idToken, challenge) => {
                           await run(
                             async () =>
@@ -427,7 +469,7 @@ export default function AuthScreen({
                         onError={setError}
                       />
                     )}
-                    {!isExpoGo && !options?.googleEnabled && (
+                    {!isExpoGo && googleOff && (
                       <Text style={{ fontSize: 10, color: C.muted, textAlign: 'center' }}>
                         Google sign-in isn’t set up for NEXT STOP yet. Please continue with email.
                       </Text>
