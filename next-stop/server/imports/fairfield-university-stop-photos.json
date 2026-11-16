@@ -1,0 +1,103 @@
+{
+  "institutionName": "Fairfield University",
+  "researchedAt": "2026-11-15",
+  "method": "Wikimedia Commons only (openly licensed; author, licence and source recorded per file). Candidates came from Commons searches for each stop's named place and from geotagged files within 250 m of each suggested boarding point. Each photo was opened and checked against its Commons description, visible signage and, where present, the camera geotag. None shows a shuttle boarding spot, so every one is marked as a nearby landmark. Images are Wikimedia's resized copies (1280 px and 500 px) with metadata removed; no other changes. No search-engine images or AI-generated images were used.",
+  "photos": {
+    "barone-traffic-circle": {
+      "file": "fairfield-barone-traffic-circle.jpg",
+      "thumb": "fairfield-barone-traffic-circle-thumb.jpg",
+      "alt": "John A. Barone Campus Center, a white building among trees, with a footpath and lamp post in front",
+      "shows": "landmark",
+      "source": "licensed",
+      "credit": "Stagophile (Wikimedia Commons)",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Fairfield_Barone_Campus_Center.JPG",
+      "match": "Commons description: 'John A. Barone Campus Center at Fairfield University'; the building's name sign is visible at the right. Shows the building, not the Loyola Drive traffic circle (suggested point 73 m from the building). Undated, uploaded about 2008."
+    },
+    "chapel-crosswalk": {
+      "file": "fairfield-chapel-crosswalk.jpg",
+      "thumb": "fairfield-chapel-crosswalk-thumb.jpg",
+      "alt": "Egan Chapel, a brick chapel with a white-trimmed gable and cross, beside a paved plaza and a white bell tower",
+      "shows": "landmark",
+      "source": "licensed",
+      "credit": "Stagophile (Wikimedia Commons)",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Fairfield_Egan_Chapel.JPG",
+      "match": "Commons description: 'Egan Chapel of St. Ignatius Loyola at Fairfield University'. The suggested crosswalk is 57 m south of this chapel. Shows the chapel and plaza, not the crosswalk. Undated, uploaded about 2008."
+    },
+    "quick-center-crosswalk": {
+      "file": "fairfield-quick-center-crosswalk.jpg",
+      "thumb": "fairfield-quick-center-crosswalk-thumb.jpg",
+      "alt": "Regina A. Quick Center for the Arts entrance canopy with the building's name, beside a curved drive and a flowering tree",
+      "shows": "landmark",
+      "source": "licensed",
+      "credit": "Stagophile (Wikimedia Commons)",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Fairfield_Quick_Center.jpg",
+      "match": "Commons description: 'Regina A. Quick Center for the Arts at Fairfield University'; the name is on the entrance canopy. The suggested crosswalk is 58 m east of the building. Taken 2008-04-19."
+    },
+    "library-meditz-crosswalk": {
+      "file": "fairfield-library-meditz-crosswalk.jpg",
+      "thumb": "fairfield-library-meditz-crosswalk-thumb.jpg",
+      "alt": "DiMenna-Nyselius Library, a long three-storey building with wide front steps, seen across a lawn",
+      "shows": "landmark",
+      "source": "licensed",
+      "credit": "Alexander Zhikun He (Codehydro), Wikimedia Commons",
+      "license": "CC SA 1.0",
+      "licenseUrl": "https://creativecommons.org/licenses/sa/1.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:DiMenna-Nyselius_Library_-_Apr_2011.JPG",
+      "match": "Commons title and category: DiMenna-Nyselius Library, Fairfield University buildings. Camera geotag 41.1574, -73.2565 is about 115 m west of the suggested crosswalk. Shows the library, not Meditz Hall or the crosswalk. Taken 2011-04-26."
+    },
+    "dsb-lower-lot-crosswalk": {
+      "file": "fairfield-dsb-lower-lot-crosswalk.jpg",
+      "thumb": "fairfield-dsb-lower-lot-crosswalk-thumb.jpg",
+      "alt": "Charles F. Dolan School of Business, a brick building with its name above the entrance, across a curved drive and crosswalk",
+      "shows": "landmark",
+      "source": "licensed",
+      "credit": "Stagophile (Wikimedia Commons)",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Fairfield_DSOB.JPG",
+      "match": "Commons description: 'Dolan School of Business at Fairfield University'; 'Charles F. Dolan School of Business' is on the building. Shows the front entrance, not the lower-lot crosswalk on the west side. Undated, uploaded about 2008."
+    },
+    "fairfield-train-station": {
+      "file": "fairfield-fairfield-train-station.jpg",
+      "thumb": "fairfield-fairfield-train-station-thumb.jpg",
+      "alt": "Fairfield train station, a brick station building on Unquowa Road, with the road bridge over the tracks at the right",
+      "shows": "landmark",
+      "source": "licensed",
+      "credit": "Spencer Georgiades (Wikimedia Commons)",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Fairfield_Railroad_Station.jpg",
+      "match": "Commons description: '165 Unquowa Rd, Fairfield, CT' (Fairfield station). Camera geotag 41.142575, -73.258003 is 59 m from the suggested point on the Unquowa Road bridge, which is visible at the right edge. Shows the station from street level, not the top of the overpass. Taken 2020-10-04."
+    },
+    "metro-train-alto": {
+      "file": "fairfield-metro-train-alto.jpg",
+      "thumb": "fairfield-metro-train-alto-thumb.jpg",
+      "alt": "Fairfield Metro station building with the red 'Fairfield Metro' sign, steps and glass stair towers",
+      "shows": "landmark",
+      "source": "licensed",
+      "credit": "Robert Mortell (Wikimedia Commons)",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Metro-North_Station_Fairfield_Metro_CT.jpg",
+      "match": "Commons description: 'The overpass at the Fairfield Metro station in Fairfield CT'; the 'Fairfield Metro' sign is visible. Camera geotag 41.1611, -73.2343 is 84 m from the suggested point. Whether this is the Alto garage side is not confirmed. Taken 2012-01-06."
+    },
+    "bridgeport-train-station": {
+      "file": "fairfield-bridgeport-train-station.jpg",
+      "thumb": "fairfield-bridgeport-train-station-thumb.jpg",
+      "alt": "Bridgeport station area: a white six-storey public parking garage on Water Street, with the elevated station behind",
+      "shows": "landmark",
+      "source": "licensed",
+      "credit": "Pedro Xing (Wikimedia Commons)",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Bridgeport_station_and_parking_garage_141.JPG",
+      "match": "Commons description: the Bridgeport Metro-North station and the adjacent parking garage on State Street at Water Street. Camera geotag 41.176772, -73.187474 is 141 m from the suggested point. The shuttle's boarding side is not published. Taken 2012-04-29."
+    }
+  }
+}

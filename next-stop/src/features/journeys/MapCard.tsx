@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { C } from '../../components/Brand';
 import LiveMap from '../../components/LiveMap';
+import type { LiveMapProps } from '../../components/MapPlaceholder';
 import { Icon, StatusChip, s } from '../../components/UI';
 import type { Tone } from '../../components/UI';
 import { GPS_LOST_AFTER, ago, locationState, routeSequence } from '../../domain';
@@ -34,7 +35,10 @@ export default function MapCard({
   highlight = {},
   now,
   onOpenStop,
+  walk,
 }: {
+  /** Walking directions to the pickup: the returned route and the device fix. */
+  walk?: LiveMapProps['walk'];
   /** Opens a stop's details from the stop strip. */
   onOpenStop?: (stopId: string) => void;
   stops: Stop[];
@@ -61,6 +65,7 @@ export default function MapCard({
           highlight={highlight}
           now={now}
           onOpenStop={onOpenStop}
+          walk={walk}
         />
         <View pointerEvents="none" style={{ position: 'absolute', top: 12, left: 12, right: 62 }}>
           <StatusChip text={gps.text} tone={gps.tone} solid />

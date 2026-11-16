@@ -24,8 +24,11 @@ export function Button({
   loadingLabel,
   large = false,
   tone,
+  accessibilityHint,
 }: {
   label: string;
+  /** Spoken after the label: what happens, when that isn't obvious from it. */
+  accessibilityHint?: string;
   onPress: () => void;
   secondary?: boolean;
   disabled?: boolean;
@@ -42,6 +45,7 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={text}
+      accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: disabled || loading, busy: loading }}
       disabled={disabled || loading}
       onPress={onPress}

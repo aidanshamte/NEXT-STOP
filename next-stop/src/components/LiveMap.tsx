@@ -18,7 +18,7 @@ const MapWebView = WebView as unknown as React.ComponentType<
   WebViewProps & { ref?: React.Ref<MapHandle> }
 >;
 
-export default function LiveMap({ height = 300, onOpenStop, ...input }: LiveMapProps) {
+export default function LiveMap({ height = 300, onOpenStop, walk, ...input }: LiveMapProps) {
   const view = useRef<MapHandle>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -26,8 +26,10 @@ export default function LiveMap({ height = 300, onOpenStop, ...input }: LiveMapP
   const reduceMotion = useReduceMotion();
   const data = buildMapPayload({
     ...input,
-    me,
-    locate,
+    // While walking directions are open, their fix is the blue dot (same device, same rules).
+    me: me || walk?.from || null,
+    locate: !me && walk?.from ? 'on' : locate,
+    walk: walk?.coords.length ? { key: walk.key, coords: walk.coords, to: walk.to } : null,
     reduceMotion,
     interactive: !!onOpenStop,
   });

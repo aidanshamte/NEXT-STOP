@@ -10,7 +10,7 @@ import { onMapMessage, useOwnLocation, useReduceMotion } from './useMapDevice';
 // one path its own CSP for the pinned MapLibre build and OpenFreeMap tiles. The frame has no
 // location access: the viewer's own position is read by this page (after they tap the map's
 // location button) and handed to the frame only.
-export default function LiveMap({ height = 300, onOpenStop, ...input }: LiveMapProps) {
+export default function LiveMap({ height = 300, onOpenStop, walk, ...input }: LiveMapProps) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -18,8 +18,10 @@ export default function LiveMap({ height = 300, onOpenStop, ...input }: LiveMapP
   const reduceMotion = useReduceMotion();
   const data = buildMapPayload({
     ...input,
-    me,
-    locate,
+    // While walking directions are open, their fix is the blue dot (same device, same rules).
+    me: me || walk?.from || null,
+    locate: !me && walk?.from ? 'on' : locate,
+    walk: walk?.coords.length ? { key: walk.key, coords: walk.coords, to: walk.to } : null,
     reduceMotion,
     interactive: !!onOpenStop,
   });

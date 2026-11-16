@@ -7,6 +7,8 @@ import { createAuth } from './auth.mjs';
 import { createPush, createExpoTransport, EXPO_TOKEN } from './push.mjs';
 import { OPEN_STATUSES } from './db.mjs';
 import { createService, VEHICLE_TYPES } from './service.mjs';
+import { createPhotos } from './photos.mjs';
+import { createWalking } from './walking.mjs';
 import { createEta } from './eta.mjs';
 import { createSafety } from './safety.mjs';
 import { createSuggestions } from './suggestions.mjs';
@@ -55,6 +57,10 @@ export function createApp({
   clock = Date.now,
   // Researched stop suggestions (tests inject their own; default: server/imports).
   suggestionData = undefined,
+  // Researched stop photos (tests inject their own; default: server/imports).
+  photoData = undefined,
+  // Walking route provider options (tests inject a fake fetch).
+  walkingOptions = {},
 } = {}) {
   const db = openDatabase(dbPath);
   const auth = createAuth(db, authOptions);
@@ -100,11 +106,14 @@ export function createApp({
   const fail = (status, message) => {
     throw Object.assign(new Error(message), { status });
   };
+  const photos = createPhotos({ db, clock, fail, ...(photoData ? { data: photoData } : {}) });
+  const walking = createWalking({ db, fail, clock, ...walkingOptions });
   const service = createService({
     db,
     push,
     clock,
     fail,
+    photos,
     hooks: { vehicleAccessChanged: (tripId) => assistance.vehicleChanged(tripId) },
   });
   const assistance = createAssistance({ db, push, clock, fail });
@@ -177,8 +186,9 @@ export function createApp({
         let data = '';
         for await (const chunk of req) {
           data += chunk;
-          // Stop photos are the only large uploads (900 KB as base64 plus the envelope).
-          if (Buffer.byteLength(data) > (path === '/stops/photo' ? 1300000 : 16384))
+          // Stop photos are the only large uploads (900 KB photo + 120 KB preview, as base64,
+          // plus the envelope). Caddy allows the same path a matching body size.
+          if (Buffer.byteLength(data) > (path === '/stops/photo' ? 1450000 : 16384))
             fail(413, 'Request too large.');
         }
         try {
@@ -460,9 +470,16 @@ export function createApp({
           memberships,
           role: member.role,
           approved: true,
-          stops: service.decorateStops(
-            member.role === 'admin' ? suggestions.decorate(org, stops) : stops,
-          ),
+          stops: service
+            .decorateStops(
+              member.role === 'admin' ? suggestions.decorate(org, stops) : stops,
+              member,
+            )
+            .map((stop) => {
+              if (member.role !== 'admin') return stop;
+              const photoSuggestion = photos.suggestion(org, stop, !!stop.photo);
+              return photoSuggestion ? { ...stop, photo_suggestion: photoSuggestion } : stop;
+            }),
           trips,
           requests,
           shares,
@@ -479,6 +496,8 @@ export function createApp({
       if (!member.approved) fail(403, 'Membership is awaiting institution approval.');
       const context = { path, method: req.method, body, url, uid, member, org, send, text };
       if (await service.handle(context)) return;
+      if (await photos.handle(context)) return;
+      if (await walking.handle(context)) return;
       if (await safety.handle(context)) return;
       if (await assistance.handle(context)) return;
       if (path === '/estimates/accuracy' && req.method === 'GET') {

@@ -165,6 +165,30 @@ Test environment: a throwaway scratchpad database ("Test Institution", "Test Sto
   - Browser check, local, API stopped then started: no Google notice and one message during the outage; one message plus "Still unavailable" after a failed retry; after recovery the message cleared and the Google notice appeared (local settings report it disabled); fresh load showed no error, sign-in reached the rider home, and there were no console errors.
 - **Google sign-in in production** has reported "needs Google OAuth client configuration" at every start since 2026-11-06, so `/auth/options` correctly says `googleEnabled: false`. That predates this incident and is unchanged.
 
+## 2j. Passed: stop photos and Walk to pickup (2026-11-15, local web; production noted below)
+
+- **Automated:** `npm test` passes, with new `photos.test.mjs` and `walking.test.mjs`. Lint, typecheck, Prettier. Covered:
+  - Metadata removal for JPEG, PNG and WebP: test images carrying EXIF with a GPS block, XMP, IPTC, comments and text chunks come out with none of it, the image data and colour profile kept, and their size still readable. Stored photos never contain it.
+  - Uploads: admins of the institution only, declared type must match the bytes, 160–4096 px, ≤900 KB, preview ≤120 KB and ≤800 px, https links only.
+  - Verification: needs alt text, source, and for licensed photos credit, licence and link; needs a confirmed stop; must name the version the admin saw. Until then riders get no photo, no `has_photo` and a 404. Replacing or re-describing clears it.
+  - Riders get the verified photo and the preview size; admin names stay with admins; other institutions and draft stops get 404.
+  - Researched photos: admin-only, institution-scoped, applied from the shipped file (never client data), unverified until checked. The shipped Fairfield set is valid, metadata-free, within limits, and matches real stop keys.
+  - Migration 11 strips photos already stored; a photo stays visible only if its stop was verified after it was added.
+  - Walking routes: destination is always the stored boarding point; the position is rounded to 4 decimals before it leaves the server; nothing is written to the database or the request log; a lookup triggers no realtime refresh and creates no request; draft and other-institution stops 404; over 20 km and "no route" 422; provider failure 503 (never a straight line); per-rider limit 429.
+  - External links carry only the destination (Apple Maps on iPhone, Google Maps elsewhere); GPS fixes are rejected when stale (>2 min) or worse than 200 m; summaries say "walking estimate" and never claim step-free routes.
+  - Caddy lets photo uploads through (1500 KB on that path only; 64 KB elsewhere). Before this, the 64 KB limit on every API request blocked photo uploads through the public site.
+- **Browser (local web build, headless Chrome at 375 px, throwaway database, real OpenStreetMap routing service):**
+  - Administrator: stop with no photo shows the branded stand-in; **Use this photo (unverified)** adds the researched Egan Chapel photo marked not verified; the rider snapshot still has no photo; **Verify** makes it visible. Same for Barone.
+  - Rider: choosing Chapel Crosswalk shows the small preview (only the preview size is fetched). **Walk to pickup** from outside the Barone Campus Center: "About 5 min walk · 380 m (walking estimate)". The map frame drew the returned 24-point route ending exactly at the chapel pin, with **Fit walking route**, zoom buttons and the location dot. The route request carried the stop id and the position only.
+  - From near Fairfield station: "About 28 min walk · 2.1 km", a different 101-point route from the station to the same pin.
+  - **Open walking directions in Google Maps** opened `…destination=41.157526,-73.258060&travelmode=walking`: the boarding point, no origin.
+  - A driver GPS update while the rider had panned the map kept the rider's view; **Fit walking route** brought the whole route back into view.
+  - Offline, too far away (New Haven) and location denied each showed their own message and kept the maps option; denied offered **Allow location**.
+  - Pickup requests before and after all of this: 0 and 0.
+  - Stop details: name and **Walk to pickup** come before the photo; the photo shows "Nearby landmark, not the exact boarding spot" and "Photo: Stagophile (Wikimedia Commons) · CC BY-SA 3.0 · Source"; the walking panel has its own map with the route.
+  - No console errors and no horizontal overflow. (Fixed on the way: stop details rendered an empty text node when a stop had no amenities or accessibility notes.)
+- **Not tested here:** physical phones (installed build and Expo Go on iPhone and Android), opening Apple Maps or the Google Maps app itself, VoiceOver/TalkBack and the largest text size, real GPS outdoors, camera and gallery uploads from a phone. These are ACCEPTANCE.md F2 and F9.
+
 ## 3. Not yet tested: needs the owner's accounts, money or devices
 
 - **Automatic rollback on a failing release** has not been triggered on the VM (only healthy releases were deployed). Budget/alert emails have not fired.

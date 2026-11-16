@@ -1,5 +1,5 @@
 import React from 'react';
-import { Linking, Pressable, Share, Text, View } from 'react-native';
+import { Pressable, Share, Text, View } from 'react-native';
 import { C } from '../../components/Brand';
 import { Button, Card, Icon, SectionLabel, StatusChip, Tag, s } from '../../components/UI';
 import { amenityIcons, amenityLabels } from '../../catalog';
@@ -11,6 +11,8 @@ import ArrivalLine from '../journeys/ArrivalLine';
 import type { Mutate } from '../workspace/types';
 import StopEditor from './StopEditor';
 import StopPhoto from './StopPhoto';
+import WalkPanel from '../walk/WalkPanel';
+import { useWalk } from '../walk/useWalk';
 
 const LABELS = ['Home', 'Classes', 'Work', 'Groceries'];
 
@@ -40,6 +42,8 @@ export default function StopDetails({
   now: number;
 }) {
   const stop = data.stops.find((x) => x.id === stopId);
+  // Walking directions to this stop; separate from requesting a pickup here.
+  const walk = useWalk(org);
   if (!stop)
     return (
       <Card>
@@ -144,34 +148,42 @@ export default function StopDetails({
             ))}
           </View>
         )}
+        {boardable &&
+          (walk.target?.id === stop.id ? (
+            <WalkPanel walk={walk} stop={stop} showMap />
+          ) : (
+            <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+              <View style={{ flex: 1, minWidth: 150 }}>
+                <Button
+                  icon="walk-outline"
+                  label={role === 'student' ? 'Walk to pickup' : 'Walking directions'}
+                  accessibilityHint="Shows walking directions to this stop. Does not request a pickup."
+                  onPress={() =>
+                    walk.start({
+                      id: stop.id,
+                      name: stop.name,
+                      lat: stop.lat as number,
+                      lng: stop.lng as number,
+                    })
+                  }
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 150 }}>
+                <Button
+                  secondary
+                  icon="share-outline"
+                  label="Share location"
+                  onPress={() =>
+                    void Share.share({
+                      message: `${stop.name} shuttle stop: ${directionsUrl(stop)}`,
+                    })
+                  }
+                />
+              </View>
+            </View>
+          ))}
         <StopPhoto org={org} stop={stop} />
         {!!stop.description && <Text style={[s.body, { color: C.navy }]}>{stop.description}</Text>}
-        {boardable && (
-          <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
-            <View style={{ flex: 1, minWidth: 140 }}>
-              <Button
-                icon="navigate-outline"
-                label="Directions"
-                onPress={() => void Linking.openURL(directionsUrl(stop))}
-              />
-            </View>
-            <View style={{ flex: 1, minWidth: 140 }}>
-              <Button
-                secondary
-                icon="share-outline"
-                label="Share location"
-                onPress={() =>
-                  void Share.share({ message: `${stop.name} shuttle stop: ${directionsUrl(stop)}` })
-                }
-              />
-            </View>
-          </View>
-        )}
-        {boardable && (
-          <Text style={s.caption}>
-            Directions open your maps app; NEXT STOP does not read your location.
-          </Text>
-        )}
       </Card>
 
       {boardable && (
@@ -245,7 +257,7 @@ export default function StopDetails({
         </Card>
       )}
 
-      {(stop.amenities?.length || stop.accessibility) && (
+      {!!(stop.amenities?.length || stop.accessibility) && (
         <Card>
           <Text style={s.heading}>Amenities and accessibility</Text>
           {stop.amenities?.map((a) => (

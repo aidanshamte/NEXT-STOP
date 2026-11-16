@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadSuggestions, validSuggestion } from '../server/suggestions.mjs';
-import { harness } from './service.test.mjs';
+import { harness } from './harness.mjs';
 
 const data = new Map([
   [

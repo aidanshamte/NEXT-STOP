@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { passCode, PASS_STEP } from '../server/safety.mjs';
-import { harness } from './service.test.mjs';
+import { harness } from './harness.mjs';
 
 const tick = () => new Promise((r) => setTimeout(r, 30));
 

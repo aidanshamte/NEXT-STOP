@@ -15,6 +15,10 @@ import SeatsLine from '../journeys/SeatsLine';
 import ArrivalLine from '../journeys/ArrivalLine';
 import MapCard from '../journeys/MapCard';
 import ServiceNotice from '../updates/ServiceNotice';
+import { StopThumb } from '../stops/StopPhoto';
+import WalkPanel from '../walk/WalkPanel';
+import { useWalk } from '../walk/useWalk';
+import type { Walk } from '../walk/useWalk';
 import { actionKey, statusLabels } from '../workspace/types';
 import type { Mutate } from '../workspace/types';
 
@@ -36,6 +40,7 @@ const stepText: Record<string, [string, string]> = {
 /** The rider's live map and pickup screen. Pickup/destination state is owned by the
  * workspace so it survives tab changes and is cleared on sign-in and institution switches. */
 export default function RiderHome({
+  org,
   stops,
   routes = [],
   routeStops = [],
@@ -59,6 +64,7 @@ export default function RiderHome({
   onOpenStop,
   assistance = [],
 }: {
+  org: string;
   /** Boarding assistance on the rider's open pickup. */
   assistance?: Assistance[];
   demand?: { stop_id: string; waiting: number }[];
@@ -88,6 +94,8 @@ export default function RiderHome({
   // Optional boarding assistance, reviewed before the request is sent.
   const [help, setHelp] = useState(emptyAssistance);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Walking directions to the pickup: separate from the request, drawn on this screen's map.
+  const walk = useWalk(org);
   // A shuttle on a route offers that route's confirmed stops in printed order (each stop once);
   // otherwise every confirmed stop of the institution.
   const options = (
@@ -143,6 +151,18 @@ export default function RiderHome({
         routeStops={routeStops}
         highlight={highlight}
         now={now}
+        walk={
+          walk.route && walk.route.stopId === walk.target?.id
+            ? {
+                key: `${walk.route.stopId}|${walk.route.coords.length}|${walk.route.distance}`,
+                coords: walk.route.coords,
+                to: walk.target.name,
+                from: walk.fix,
+              }
+            : walk.fix && walk.target
+              ? { key: 'fix', coords: [], to: walk.target.name, from: walk.fix }
+              : null
+        }
       />
       {request ? (
         <Card style={{ gap: 16 }}>
@@ -172,6 +192,9 @@ export default function RiderHome({
               onPress={() => onOpenStop(request.destination_id)}
             />
           </View>
+          {['requested', 'accepted', 'approaching'].includes(request.status) && (
+            <WalkControl walk={walk} stop={stops.find((x) => x.id === request.stop_id)} />
+          )}
           <RiderAssistance
             request={request}
             assistance={assistance.find((a) => a.request_id === request.id)}
@@ -261,6 +284,7 @@ export default function RiderHome({
                       onPress={() => {
                         setPickup(stop.id);
                         if (destination === stop.id) setDestination('');
+                        if (walk.target && walk.target.id !== stop.id) walk.stop();
                       }}
                       style={[
                         s.stopOption,
@@ -293,6 +317,14 @@ export default function RiderHome({
                   );
                 })}
               </View>
+              {!!pickup && (
+                <SelectedPickup
+                  org={org}
+                  stop={stops.find((x) => x.id === pickup)}
+                  walk={walk}
+                  onOpenStop={onOpenStop}
+                />
+              )}
               <Text style={s.label}>DROP-OFF</Text>
               <View style={s.pills}>
                 {options
@@ -382,6 +414,65 @@ export default function RiderHome({
         </Card>
       )}
     </View>
+  );
+}
+
+/** The chosen pickup: name first, a small photo, and walking directions (not a request). */
+function SelectedPickup({
+  org,
+  stop,
+  walk,
+  onOpenStop,
+}: {
+  org: string;
+  stop?: Stop;
+  walk: Walk;
+  onOpenStop: (id: string) => void;
+}) {
+  if (!stop || !isBoardable(stop)) return null;
+  return (
+    <View style={{ gap: 10, padding: 12, borderRadius: 16, backgroundColor: C.paper }}>
+      <View style={[s.row, { justifyContent: 'flex-start', gap: 12 }]}>
+        <StopThumb org={org} stop={stop} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={s.caption}>Selected pickup</Text>
+          <Text style={s.heading}>{stop.name}</Text>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`${stop.name}: stop details and photo`}
+            onPress={() => onOpenStop(stop.id)}
+            hitSlop={6}
+          >
+            <Text style={[s.caption, { color: C.navy, textDecorationLine: 'underline' }]}>
+              Stop details
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+      <WalkControl walk={walk} stop={stop} />
+    </View>
+  );
+}
+
+/** "Walk to pickup", then the walking panel for that stop. Never touches a request. */
+function WalkControl({ walk, stop }: { walk: Walk; stop?: Stop }) {
+  if (!stop || !isBoardable(stop)) return null;
+  if (walk.target?.id === stop.id) return <WalkPanel walk={walk} />;
+  return (
+    <Button
+      secondary
+      icon="walk-outline"
+      label="Walk to pickup"
+      accessibilityHint="Shows walking directions to this stop. Does not request a pickup."
+      onPress={() =>
+        walk.start({
+          id: stop.id,
+          name: stop.name,
+          lat: stop.lat as number,
+          lng: stop.lng as number,
+        })
+      }
+    />
   );
 }
 

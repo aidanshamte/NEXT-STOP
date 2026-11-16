@@ -54,3 +54,28 @@ Totals: 2 high, 13 medium, 6 low, 2 without a suggestion, 0 confirmed automatica
 - Confirmed stops (including any stop an administrator already pinned) are never changed by a suggestion; approving one returns 409.
 - Suggestions are matched by institution name and the stop’s import key, so no other institution sees them.
 - To replace a suggestion, edit the JSON file and deploy; to reject one, skip it and pin the stop on site.
+
+## Stop photos (researched 2026-11-15)
+
+Shipped in `server/imports/fairfield-university-stop-photos.json` with the images in `server/imports/photos/`. An administrator sees **Researched photo available** on a stop's page (Edit stop details → Photo), taps **Use this photo (unverified)**, checks it, then taps **Verify: this photo shows this stop**. Riders see a photo only after that.
+
+Source rules: Wikimedia Commons only (openly licensed; author, licence and link recorded and shown to riders). No search-engine images, no AI-generated images. Each photo was opened and checked against its Commons description, visible signage and, where present, the camera geotag. Wikimedia's resized copies are used (1280 px and a 500 px preview) with metadata removed.
+
+None of these photos shows the spot where the shuttle stops. Every one is marked **Nearby landmark, not the exact boarding spot**.
+
+| Stop                                      | Photo                                                                                                                                  | Author · licence                            | How it was matched                                                                                           |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Barone Campus Center Traffic Circle       | [Fairfield Barone Campus Center.JPG](https://commons.wikimedia.org/wiki/File:Fairfield_Barone_Campus_Center.JPG)                       | Stagophile · CC BY-SA 3.0                   | Description and the building's name sign. Shows the building, not the traffic circle                         |
+| Library & Meditz Crosswalk                | [DiMenna-Nyselius Library - Apr 2011.JPG](https://commons.wikimedia.org/wiki/File:DiMenna-Nyselius_Library_-_Apr_2011.JPG)             | Alexander Zhikun He (Codehydro) · CC SA 1.0 | Title and category; camera 115 m west of the suggested crosswalk. Shows the library only                     |
+| Quick Center Crosswalk                    | [Fairfield Quick Center.jpg](https://commons.wikimedia.org/wiki/File:Fairfield_Quick_Center.jpg)                                       | Stagophile · CC BY-SA 3.0                   | Description and the name on the entrance canopy                                                              |
+| DSB Lower Lot Crosswalk                   | [Fairfield DSOB.JPG](https://commons.wikimedia.org/wiki/File:Fairfield_DSOB.JPG)                                                       | Stagophile · CC BY-SA 3.0                   | Description and the name on the building. Shows the front, not the lower lot                                 |
+| Chapel Crosswalk                          | [Fairfield Egan Chapel.JPG](https://commons.wikimedia.org/wiki/File:Fairfield_Egan_Chapel.JPG)                                         | Stagophile · CC BY-SA 3.0                   | Description names the Egan Chapel; the crosswalk is 57 m south                                               |
+| Fairfield Train Station (top of overpass) | [Fairfield Railroad Station.jpg](https://commons.wikimedia.org/wiki/File:Fairfield_Railroad_Station.jpg)                               | Spencer Georgiades · CC BY-SA 4.0           | Description gives 165 Unquowa Rd; camera 59 m from the suggested point; the road bridge is at the right edge |
+| Metro Train (Alto Parking Garage Side)    | [Metro-North Station Fairfield Metro CT.jpg](https://commons.wikimedia.org/wiki/File:Metro-North_Station_Fairfield_Metro_CT.jpg)       | Robert Mortell · CC BY-SA 3.0               | "Fairfield Metro" sign; camera 84 m from the suggested point. Garage side not confirmed                      |
+| Bridgeport Train Station                  | [Bridgeport station and parking garage 141.JPG](https://commons.wikimedia.org/wiki/File:Bridgeport_station_and_parking_garage_141.JPG) | Pedro Xing · CC0 1.0                        | Description: station and garage at State and Water Streets; camera 141 m from the suggested point            |
+
+The photos date from 2008 to 2020, so buildings or landscaping may have changed; check each one against the place before verifying it.
+
+**Needs our own photography (no suitable openly licensed photo found):** Walsh Lot Crosswalk, Dolan Campus Circle, Block 17 Walkway, Block 13 Walkway, Crosswalk behind Canisius, Jogues & Health Center, Campion Crosswalk, 140 Mill Plain Road, Fairfield Green (near Bookstore), Grasmere & Post Rd, Whole Foods, Stop & Shop, Marshalls/CVS, Bellarmine Campus, 1720 Post Road. Commons geotag searches within 250 m and name searches found only unrelated subjects (1930s survey photos of historic houses, concerts, a 2013 rail accident, a nearby church, a highway sign photo).
+
+**Best next step for every stop:** photograph the boarding spot itself (the curb, sign or crosswalk where riders wait) with **Take photo** while confirming the pin on site. The app re-encodes it on the phone and removes location metadata. Then replace the landmark photos above.

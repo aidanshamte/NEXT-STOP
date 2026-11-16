@@ -478,6 +478,7 @@ function Workspace() {
       <>
         {alertBanners}
         <RiderHome
+          org={org}
           assistance={data?.assistance}
           demand={data?.demand}
           favorites={data?.favorites}

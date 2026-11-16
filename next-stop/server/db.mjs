@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { imageSize, stripMetadata } from './photos.mjs';
 
 // Versioned migrations. PRAGMA user_version records the last applied step.
 // Every step must preserve existing rows. Step 1 is idempotent because
@@ -187,6 +188,37 @@ const migrations = [
         UPDATE request_assistance SET note='',staff_note=''
           WHERE request_id=NEW.id AND (note<>'' OR staff_note<>'');
       END;`);
+  },
+  // 11: stop photos get a preview size, a description (alt text), source and licence records,
+  // and their own verification. Metadata (including GPS) is removed from photos already stored.
+  // A photo stays visible to riders only if its stop was verified after the photo was added.
+  (db) => {
+    db.exec(`ALTER TABLE stop_photos ADD COLUMN thumb BLOB;
+    ALTER TABLE stop_photos ADD COLUMN thumb_type TEXT;
+    ALTER TABLE stop_photos ADD COLUMN width INTEGER;
+    ALTER TABLE stop_photos ADD COLUMN height INTEGER;
+    ALTER TABLE stop_photos ADD COLUMN alt TEXT NOT NULL DEFAULT '';
+    ALTER TABLE stop_photos ADD COLUMN source TEXT NOT NULL DEFAULT '' CHECK(source IN ('','own','institution','licensed'));
+    ALTER TABLE stop_photos ADD COLUMN credit TEXT NOT NULL DEFAULT '';
+    ALTER TABLE stop_photos ADD COLUMN license TEXT NOT NULL DEFAULT '';
+    ALTER TABLE stop_photos ADD COLUMN license_url TEXT NOT NULL DEFAULT '';
+    ALTER TABLE stop_photos ADD COLUMN source_url TEXT NOT NULL DEFAULT '';
+    ALTER TABLE stop_photos ADD COLUMN shows TEXT NOT NULL DEFAULT '' CHECK(shows IN ('','boarding','landmark'));
+    ALTER TABLE stop_photos ADD COLUMN verified_at INTEGER;
+    ALTER TABLE stop_photos ADD COLUMN verified_by TEXT;
+    ALTER TABLE stop_photos ADD COLUMN uploaded_by TEXT NOT NULL DEFAULT '';
+    UPDATE stop_photos SET
+      verified_at=(SELECT details_verified_at FROM stops WHERE stops.id=stop_photos.stop_id),
+      verified_by=(SELECT details_verified_by FROM stops WHERE stops.id=stop_photos.stop_id)
+      WHERE (SELECT details_verified_at FROM stops WHERE stops.id=stop_photos.stop_id)>=updated_at;`);
+    const update = db.prepare('UPDATE stop_photos SET data=?,width=?,height=? WHERE stop_id=?');
+    for (const p of db.prepare('SELECT stop_id,data,content_type FROM stop_photos').all()) {
+      const clean = stripMetadata(Buffer.from(p.data), p.content_type);
+      const size = clean && imageSize(clean, p.content_type);
+      // A photo that cannot be parsed keeps its bytes but is hidden until replaced.
+      if (clean && size) update.run(clean, size.width, size.height, p.stop_id);
+      else db.prepare('UPDATE stop_photos SET verified_at=NULL WHERE stop_id=?').run(p.stop_id);
+    }
   },
 ];
 // Statuses in which a request holds a place and blocks a new request by the same student.

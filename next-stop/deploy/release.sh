@@ -70,6 +70,14 @@ chown -R root:root "$DIR"
 chmod -R go-w "$DIR"
 
 # 3. Apply service/proxy configuration shipped with the release.
+# The shipped Caddyfile is validated before anything is installed, so an invalid file can never
+# be left in /etc/caddy for the next restart or reboot to load.
+(set -a
+ # shellcheck source=/dev/null
+ source /etc/next-stop/deploy.env
+ set +a
+ caddy validate --config "$DIR/deploy/Caddyfile" --adapter caddyfile >/dev/null) ||
+  { log "the release's Caddyfile is invalid; nothing was changed"; exit 1; }
 install -m 644 "$DIR/deploy/systemd/next-stop.service" /etc/systemd/system/next-stop.service
 install -m 644 "$DIR/deploy/systemd/next-stop-backup.service" /etc/systemd/system/next-stop-backup.service
 install -m 644 "$DIR/deploy/systemd/next-stop-backup.timer" /etc/systemd/system/next-stop-backup.timer

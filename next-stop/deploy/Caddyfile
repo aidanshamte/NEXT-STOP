@@ -26,7 +26,13 @@
 {$NEXT_STOP_DOMAIN} {
 	encode zstd gzip
 	import api_headers
-	request_body {
+	# Stop photo uploads (admins only, checked by the API) are the one large request body.
+	@apiPhotoUpload path /stops/photo
+	request_body @apiPhotoUpload {
+		max_size 1500KB
+	}
+	@apiOtherBody not path /stops/photo
+	request_body @apiOtherBody {
 		max_size 64KB
 	}
 	# Caddy ignores client-supplied X-Forwarded-For (no trusted_proxies set) and
@@ -41,7 +47,12 @@
 	import api_headers
 	import api_routes
 	handle @api {
-		request_body {
+		@webPhotoUpload path /stops/photo
+		request_body @webPhotoUpload {
+			max_size 1500KB
+		}
+		@webOtherBody not path /stops/photo
+		request_body @webOtherBody {
 			max_size 64KB
 		}
 		reverse_proxy 127.0.0.1:4000

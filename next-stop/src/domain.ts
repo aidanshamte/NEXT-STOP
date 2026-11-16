@@ -25,6 +25,18 @@ export interface Stop {
   details_verified_at?: number | null;
   details_verified_by?: string | null;
   has_photo?: number;
+  /** The stop's photo record. Riders receive verified photos only. */
+  photo?: StopPhotoInfo;
+  /** Administrators only: a researched photo they can apply to a stop without one. */
+  photo_suggestion?: {
+    alt: string;
+    shows: PhotoShows;
+    credit: string;
+    license: string;
+    sourceUrl: string;
+    match: string;
+    researchedAt: string | null;
+  };
   /** Administrators only: how the pin was set, and a researched suggestion for a draft stop. */
   import_key?: string | null;
   pin_source?: string;
@@ -38,6 +50,34 @@ export interface Stop {
     researchedAt: string | null;
   };
   unresolved?: string;
+}
+export type PhotoShows = '' | 'boarding' | 'landmark';
+export type PhotoSource = '' | 'own' | 'institution' | 'licensed';
+export interface StopPhotoInfo {
+  /** Changes whenever the image is replaced; clients cache images by it. */
+  version: number;
+  alt: string;
+  shows: PhotoShows;
+  source: PhotoSource;
+  credit: string;
+  license: string;
+  licenseUrl: string;
+  sourceUrl: string;
+  verified: boolean;
+  verifiedAt: number | null;
+  /** Administrators only. */
+  verifiedBy?: string | null;
+  uploadedBy?: string;
+  width?: number;
+  height?: number;
+  /** What must be added before the photo can be verified. */
+  missing?: string[];
+}
+/** One line crediting a photo, e.g. "Photo: Jane Doe · CC BY-SA 4.0". */
+export function photoCredit(p: StopPhotoInfo) {
+  if (p.source === 'own')
+    return p.credit ? `Photo: ${p.credit}` : 'Photo by your institution’s transport team';
+  return [p.credit ? `Photo: ${p.credit}` : '', p.license].filter(Boolean).join(' · ');
 }
 export interface Route {
   id: string;
@@ -493,6 +533,9 @@ export interface MapPayload {
   route: { name: string; color: string } | null;
   interactive: boolean;
   reduceMotion: boolean;
+  /** A walking route returned by the routing service (never a drawn straight line). `key`
+   * changes with each new route, so the map fits it once and then leaves the view alone. */
+  walk: { key: string; coords: [number, number][]; to: string } | null;
 }
 export interface MapHighlight {
   pickupId?: string;
@@ -511,6 +554,7 @@ export interface MapInput {
   locate?: MapPayload['locate'];
   interactive?: boolean;
   reduceMotion?: boolean;
+  walk?: MapPayload['walk'];
 }
 
 const NAVY = '#11243A';
@@ -558,6 +602,7 @@ export function buildMapPayload({
   locate = 'off',
   interactive = false,
   reduceMotion = false,
+  walk = null,
 }: MapInput): MapPayload {
   const focusTrip = trips.find((t) => t.id === focusId);
   const focusRoute = routes.find((r) => r.id === focusTrip?.route_id);
@@ -664,6 +709,7 @@ export function buildMapPayload({
     route: focusRoute ? { name: focusRoute.name, color: safeColor(focusRoute.color) } : null,
     interactive,
     reduceMotion,
+    walk: walk && walk.coords.length >= 2 ? walk : null,
   };
 }
 
@@ -678,6 +724,7 @@ export function mapLabel(payload: MapPayload) {
     if (old) parts.push(`${old} with an out-of-date location.`);
   }
   if (payload.me) parts.push('Your location is shown.');
+  if (payload.walk) parts.push(`Walking route to ${payload.walk.to} shown.`);
   return parts.join(' ');
 }
 

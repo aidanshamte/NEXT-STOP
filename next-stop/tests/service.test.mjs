@@ -3,101 +3,11 @@
 // A recording transport stands in for the Expo Push Service.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { createApp } from '../server/app.mjs';
-import { hashPassword } from '../server/security.mjs';
 import { zonedEpoch, localDate } from '../server/time.mjs';
-import { seedInstitutions } from './fixtures.mjs';
+import { harness } from './harness.mjs';
 
 const pass = 'service-test-password';
 const tick = () => new Promise((r) => setTimeout(r, 30));
-const PNG = Buffer.from(
-  '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489',
-  'hex',
-);
-
-export async function harness(t, { clock, suggestionData } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'nextstop-service-'));
-  const sent = [];
-  const transport = {
-    async send(messages) {
-      sent.push(...messages);
-      return messages.map((_, i) => ({ status: 'ok', id: `t-${sent.length}-${i}` }));
-    },
-    async receipts() {
-      return {};
-    },
-  };
-  const app = createApp({
-    dbPath: join(dir, 'service.db'),
-    pushTransport: transport,
-    authOptions: { mailer: async () => {} },
-    clock,
-    suggestionData,
-  });
-  seedInstitutions(app.db);
-  const people = [
-    'northbridge-student',
-    'northbridge-student2',
-    'northbridge-driver',
-    'northbridge-parent',
-    'northbridge-admin',
-    'lakeside-admin',
-    'lakeside-student',
-  ];
-  for (const id of people) {
-    const [org, role] = id.split('-');
-    app.db
-      .prepare('INSERT INTO users(id,name,email,password,email_verified) VALUES (?,?,?,?,1)')
-      .run(id, `Sam ${role}`, `${id}@example.com`, hashPassword(pass));
-    app.db
-      .prepare('INSERT INTO memberships VALUES (?,?,?,1)')
-      .run(id, org, role.replace(/\d$/, ''));
-  }
-  app.db
-    .prepare(
-      "INSERT INTO trips(id,institution_id,driver_id,name,capacity,active) VALUES ('bus','northbridge','northbridge-driver','Shuttle A',2,1)",
-    )
-    .run();
-  await new Promise((r) => app.server.listen(0, '127.0.0.1', r));
-  const base = `http://127.0.0.1:${app.server.address().port}`;
-  t.after(async () => {
-    app.realtime.close();
-    await new Promise((r) => app.server.close(r));
-    app.db.close();
-    rmSync(dir, { recursive: true, force: true });
-  });
-  const call = async (path, token, body) => {
-    const res = await fetch(base + path, {
-      method: body ? 'POST' : 'GET',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    return { status: res.status, data: await res.json() };
-  };
-  const tokens = {};
-  for (const id of people) {
-    const r = await call('/auth/login', '', { email: `${id}@example.com`, password: pass });
-    tokens[id] = r.data.token;
-    await call('/push/register', r.data.token, {
-      token: `ExponentPushToken[${id.replace(/-/g, '')}xx]`,
-      platform: 'ios',
-    });
-  }
-  const as = (id) => {
-    const org = id.split('-')[0];
-    return {
-      post: (path, body = {}) => call(path, tokens[id], { institutionId: org, ...body }),
-      get: (path, query = '') => call(`${path}?institutionId=${org}${query}`, tokens[id]),
-      snapshot: async () => (await call(`/snapshot?institutionId=${org}`, tokens[id])).data,
-    };
-  };
-  const pushedTo = (id) =>
-    sent.filter((m) => m.to === `ExponentPushToken[${id.replace(/-/g, '')}xx]`);
-  return { app, as, sent, pushedTo, call, tokens };
-}
 
 test('waiting counts, request expiry, cancel reasons and preferences', async (t) => {
   let now = Date.now();
@@ -272,7 +182,7 @@ test('driver-confirmed onboard count drives capacity and can be corrected', asyn
   );
 });
 
-test('favorites, stop details, verification and photos', async (t) => {
+test('favorites, stop details and verification', async (t) => {
   const h = await harness(t);
   const student = h.as('northbridge-student'),
     admin = h.as('northbridge-admin'),
@@ -345,82 +255,7 @@ test('favorites, stop details, verification and photos', async (t) => {
     assert.equal(stop.details_verified_at, null);
   });
 
-  await t.test('photos: type-checked, size-limited, institution-scoped', async () => {
-    const data = PNG.toString('base64');
-    assert.equal(
-      (
-        await student.post('/stops/photo', {
-          stopId: 'northbridge-1',
-          contentType: 'image/png',
-          data,
-        })
-      ).status,
-      403,
-    );
-    assert.equal(
-      (
-        await admin.post('/stops/photo', {
-          stopId: 'northbridge-1',
-          contentType: 'image/jpeg',
-          data,
-        })
-      ).status,
-      400,
-      'declared type must match the bytes',
-    );
-    assert.equal(
-      (
-        await admin.post('/stops/photo', {
-          stopId: 'northbridge-1',
-          contentType: 'image/png',
-          data: Buffer.from('<svg/>').toString('base64'),
-        })
-      ).status,
-      400,
-    );
-    const big = Buffer.concat([PNG, Buffer.alloc(950 * 1024)]).toString('base64');
-    assert.equal(
-      (
-        await admin.post('/stops/photo', {
-          stopId: 'northbridge-1',
-          contentType: 'image/png',
-          data: big,
-        })
-      ).status,
-      413,
-    );
-    assert.equal(
-      (
-        await admin.post('/stops/photo', {
-          stopId: 'northbridge-1',
-          contentType: 'image/png',
-          data,
-        })
-      ).status,
-      200,
-    );
-    const got = await student.get('/stops/photo', '&stopId=northbridge-1');
-    assert.equal(got.status, 200);
-    assert.equal(got.data.data, data);
-    assert.equal(
-      (await student.snapshot()).stops.find((s) => s.id === 'northbridge-1').has_photo,
-      1,
-    );
-    assert.equal(
-      (
-        await h.call(
-          '/stops/photo?institutionId=lakeside&stopId=northbridge-1',
-          h.tokens['lakeside-student'],
-        )
-      ).status,
-      404,
-    );
-    assert.equal(
-      (await admin.post('/stops/photo/delete', { stopId: 'northbridge-1' })).status,
-      200,
-    );
-    assert.equal((await student.get('/stops/photo', '&stopId=northbridge-1')).status, 404);
-  });
+  // Photos: tests/photos.test.mjs.
 
   await t.test('account deletion removes favorites and preferences', async () => {
     await student.post('/favorites', { kind: 'stop', targetId: 'northbridge-2' });

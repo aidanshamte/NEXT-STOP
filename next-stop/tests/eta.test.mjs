@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { metres, toSegment, MIN_SAMPLES } from '../server/eta.mjs';
 import { pruneExpired } from '../server/db.mjs';
-import { harness } from './service.test.mjs';
+import { harness } from './harness.mjs';
 
 const tick = () => new Promise((r) => setTimeout(r, 30));
 // Four stops about 450 m apart on a square loop: A → B → C → D → A.

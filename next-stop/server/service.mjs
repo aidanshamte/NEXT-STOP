@@ -19,14 +19,6 @@ export const VEHICLE_FEATURES = Object.keys(catalog.vehicleFeatures);
 // Vehicle types an administrator can save; blank means not set. The map never infers one.
 export const VEHICLE_TYPES = ['', 'bus', 'shuttle'];
 export const ACCESS_STATES = ['available', 'unavailable', 'unknown'];
-export const PHOTO_LIMIT = 900 * 1024;
-const PHOTO_TYPES = {
-  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
-  'image/png': (b) => b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])),
-  'image/webp': (b) =>
-    b.subarray(0, 4).toString('latin1') === 'RIFF' &&
-    b.subarray(8, 12).toString('latin1') === 'WEBP',
-};
 const PREF_COLUMNS = {
   trip_updates: 'trip_updates',
   delay_alerts: 'delay_alerts',
@@ -36,7 +28,7 @@ const PREF_COLUMNS = {
 const DEFAULT_PREFS = { trip_updates: 1, delay_alerts: 1, service_alerts: 1, approach_stops: 1 };
 const WAITING = "('requested','accepted','approaching')";
 
-export function createService({ db, push, clock, fail, hooks = {} }) {
+export function createService({ db, push, clock, fail, hooks = {}, photos }) {
   const settings = (org) => {
     const row = db
       .prepare(
@@ -206,20 +198,15 @@ export function createService({ db, push, clock, fail, hooks = {} }) {
     };
   }
 
-  /** Adds detail fields to snapshot stops. */
-  function decorateStops(stops) {
-    const photos = new Set(
-      db
-        .prepare(
-          `SELECT stop_id FROM stop_photos WHERE stop_id IN (${stops.map(() => '?').join(',') || "''"})`,
-        )
-        .all(...stops.map((s) => s.id))
-        .map((r) => r.stop_id),
-    );
+  /** Adds detail fields to snapshot stops. Photo details come from photos.mjs: riders see
+   * verified photos only. */
+  function decorateStops(stops, member) {
+    const photo = photos ? photos.meta(stops, member) : new Map();
     return stops.map((s) => ({
       ...s,
       amenities: parseList(s.amenities),
-      has_photo: photos.has(s.id) ? 1 : 0,
+      has_photo: photo.has(s.id) ? 1 : 0,
+      ...(photo.has(s.id) ? { photo: photo.get(s.id) } : {}),
     }));
   }
 
@@ -304,21 +291,6 @@ export function createService({ db, push, clock, fail, hooks = {} }) {
     if (method === 'GET') {
       if (path === '/schedule')
         return (send(200, schedule(org, url.searchParams.get('date'))), true);
-      if (path === '/stops/photo') {
-        const stop = stopIn(url.searchParams.get('stopId'), org);
-        if (!stop || (stop.status !== 'confirmed' && member.role !== 'admin'))
-          fail(404, 'Stop not found.');
-        const photo = db
-          .prepare('SELECT data,content_type,updated_at FROM stop_photos WHERE stop_id=?')
-          .get(stop.id);
-        if (!photo) fail(404, 'No photo for this stop.');
-        send(200, {
-          contentType: photo.content_type,
-          data: Buffer.from(photo.data).toString('base64'),
-          updatedAt: photo.updated_at,
-        });
-        return true;
-      }
       return false;
     }
     const now = clock();
@@ -508,36 +480,6 @@ export function createService({ db, push, clock, fail, hooks = {} }) {
           nameOf(uid),
           stop.id,
         );
-        send(200, { ok: true });
-        return true;
-      }
-      case '/stops/photo': {
-        requireAdmin(member);
-        const stop = stopIn(text('stopId'), org);
-        if (!stop) fail(404, 'Stop not found.');
-        const type = text('contentType');
-        if (!PHOTO_TYPES[type]) fail(400, 'Use a JPEG, PNG or WebP photo.');
-        if (typeof body.data !== 'string' || !/^[A-Za-z0-9+/]+=*$/.test(body.data))
-          fail(400, 'Invalid photo data.');
-        const bytes = Buffer.from(body.data, 'base64');
-        if (bytes.length > PHOTO_LIMIT) fail(413, 'Photo is too large. Use one under 900 KB.');
-        if (bytes.length < 16 || !PHOTO_TYPES[type](bytes))
-          fail(400, 'The file is not a valid photo.');
-        db.prepare(
-          `INSERT INTO stop_photos(stop_id,institution_id,data,content_type,updated_at) VALUES (?,?,?,?,?)
-           ON CONFLICT(stop_id) DO UPDATE SET data=excluded.data,content_type=excluded.content_type,updated_at=excluded.updated_at`,
-        ).run(stop.id, org, bytes, type, now);
-        db.prepare(
-          'UPDATE stops SET details_verified_at=NULL,details_verified_by=NULL WHERE id=?',
-        ).run(stop.id);
-        send(200, { ok: true });
-        return true;
-      }
-      case '/stops/photo/delete': {
-        requireAdmin(member);
-        const stop = stopIn(text('stopId'), org);
-        if (!stop) fail(404, 'Stop not found.');
-        db.prepare('DELETE FROM stop_photos WHERE stop_id=?').run(stop.id);
         send(200, { ok: true });
         return true;
       }

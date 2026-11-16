@@ -17,6 +17,13 @@ export interface LiveMapProps {
   now?: number;
   /** Opens a stop's details (and its pickup action) when its marker is tapped. */
   onOpenStop?: (stopId: string) => void;
+  /** Walking directions: the returned route and the device fix it started from. */
+  walk?: {
+    key: string;
+    coords: [number, number][];
+    to: string;
+    from: { lat: number; lng: number; accuracy: number } | null;
+  } | null;
 }
 
 export function MapPlaceholder({ height, text }: { height: number; text: string }) {

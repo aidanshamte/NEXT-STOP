@@ -30,9 +30,13 @@
 #map.far .veh:not(.focus) .st{top:47px}
 .acc{border-radius:50%;background:rgba(26,115,232,.14);border:1px solid rgba(26,115,232,.45);box-sizing:border-box;pointer-events:none}
 .me{width:20px;height:20px;border-radius:50%;background:#1A73E8;border:3px solid #fff;box-sizing:border-box;box-shadow:0 0 0 1px rgba(26,115,232,.5),0 1px 4px rgba(0,0,0,.4);pointer-events:none}
-.ctl{position:absolute;right:10px;z-index:2;width:40px;height:40px;border-radius:20px;border:0;padding:0;background:#fff;color:#11243A;box-shadow:0 1px 6px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ctl{position:absolute;right:10px;z-index:2;width:38px;height:38px;border-radius:19px;border:0;padding:0;background:#fff;color:#11243A;box-shadow:0 1px 6px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;cursor:pointer}
 .ctl svg{width:22px;height:22px;display:block}
-#recenter{top:10px}#locate{top:58px}#locate.on{background:#E8F0FE}#locate.waiting{opacity:.7}
+#recenter{top:8px}#locate{top:52px}#locate.on{background:#E8F0FE}#locate.waiting{opacity:.7}
+#zin{top:96px;border-radius:19px 19px 0 0}#zout{top:134px;border-radius:0 0 19px 19px;border-top:1px solid #E1E6EA}
+#fitwalk{top:178px;display:none}#fitwalk.show{display:flex}
+.ctl:focus-visible,#keybtn:focus-visible{outline:3px solid #1A73E8;outline-offset:2px}
+.kline{width:26px;height:0;border-top:5px dotted #1A73E8}
 #keybtn{position:absolute;left:10px;bottom:10px;z-index:2;height:30px;padding:0 12px;border-radius:15px;border:0;background:#fff;color:#11243A;font-weight:700;font-size:12px;box-shadow:0 1px 6px rgba(0,0,0,.25);cursor:pointer}
 #key{position:absolute;left:10px;bottom:48px;z-index:3;width:250px;max-width:calc(100% - 20px);max-height:calc(100% - 110px);overflow:auto;box-sizing:border-box;background:#fff;border-radius:12px;padding:8px 12px;box-shadow:0 2px 10px rgba(0,0,0,.3);font-size:12px;line-height:16px;color:#11243A;display:none}
 #key.open{display:block}#key h2{font-size:12px;margin:4px 0 6px}
@@ -48,6 +52,9 @@
 <body><div id="map" role="region" aria-label="Shuttle map"></div>
 <button id="recenter" class="ctl" type="button" aria-label="Show all stops and vehicles"></button>
 <button id="locate" class="ctl" type="button" aria-label="Show my location" aria-pressed="false"></button>
+<button id="zin" class="ctl" type="button" aria-label="Zoom in"></button>
+<button id="zout" class="ctl" type="button" aria-label="Zoom out"></button>
+<button id="fitwalk" class="ctl" type="button" aria-label="Fit walking route"></button>
 <button id="keybtn" type="button" aria-expanded="false" aria-controls="key">Key</button>
 <div id="key" role="region" aria-label="Map key"><div id="offmap"></div></div>
 <div id="note" role="status" aria-live="polite"></div>
@@ -108,6 +115,9 @@ function destFlag(){return S('svg',{viewBox:'0 0 34 44',width:34,height:44,'aria
  S('path',{fill:'#fff',d:'M10.4 3.6h4.4v4.8h-4.4zM19.2 3.6h4.4v4.8h-4.4zM14.8 8.4h4.4v4.8h-4.4zM23.6 8.4h3.5l-1.5 2.4 1.5 2.4h-3.5zM10.4 13.2h4.4V18h-4.4zM19.2 13.2h4.4V18h-4.4z'})])}
 function crosshair(){return S('svg',{viewBox:'0 0 24 24','aria-hidden':'true'},[S('circle',{cx:12,cy:12,r:6.5,fill:'none',stroke:'currentColor','stroke-width':2}),
  S('circle',{cx:12,cy:12,r:2.6,fill:'#1A73E8'}),S('path',{stroke:'currentColor','stroke-width':2,d:'M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4'})])}
+function plusIcon(minus){return S('svg',{viewBox:'0 0 24 24','aria-hidden':'true'},[S('path',{stroke:'currentColor','stroke-width':2.4,'stroke-linecap':'round',d:minus?'M6 12h12':'M6 12h12M12 6v12'})])}
+function walkIcon(){return S('svg',{viewBox:'0 0 24 24','aria-hidden':'true'},[S('circle',{cx:13.5,cy:4.2,r:2,fill:'currentColor'}),
+ S('path',{fill:'none',stroke:'currentColor','stroke-width':2,'stroke-linecap':'round','stroke-linejoin':'round',d:'M9 21l2.4-6.2L14 17v4M11.4 14.8l1-5.3-3 1.4-1.2 3M12.4 9.5l2.4 2.6 2.7.9'})])}
 function fitIcon(){return S('svg',{viewBox:'0 0 24 24','aria-hidden':'true'},[S('path',{fill:'none',stroke:'currentColor','stroke-width':2,'stroke-linecap':'round',d:'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5'})])}
 
 // Marker elements. Each is a button with a spoken label; children carry the artwork.
@@ -127,7 +137,7 @@ function vehEl(v){var b=H('button','mk veh '+v.state+(v.focus?' focus':''));b.ty
  if(v.state!=='live')i.appendChild(H('span','st',v.state==='stale'?'Location out of date':'GPS lost'));
  b.appendChild(i);b.setAttribute('aria-label',v.label);b.title=v.name;return b}
 
-var map,last=null,fitted=false,moved=false,stops={},vehs={},popup=null,popKey=null,meDot=null,meAcc=null,wantMe=false;
+var map,last=null,fitted=false,moved=false,walkKey=null,styleReady=false,stops={},vehs={},popup=null,popKey=null,meDot=null,meAcc=null,wantMe=false;
 var mq=window.matchMedia?matchMedia('(prefers-reduced-motion: reduce)'):null;
 function reduced(){return !!(last&&last.reduceMotion)||!!(mq&&mq.matches)}
 function post(m){if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(m);else if(window.parent!==window)window.parent.postMessage(m,'*')}
@@ -137,6 +147,7 @@ try{
  map.on('dragstart',function(){moved=true});
  map.on('zoomstart',function(e){if(e.originalEvent)moved=true});
  map.on('zoom',function(){document.getElementById('map').classList.toggle('far',map.getZoom()<13.5);sizeAcc()});
+ map.on('load',function(){styleReady=true;if(last)drawWalk(last)});
  // Markers and the camera work before the style finishes, so data is accepted at once.
  post('ready');
 }catch(e){post('error')}
@@ -176,6 +187,23 @@ function moveVeh(m,v){var to=[v.lng,v.lat];cancelAnimationFrame(m.anim);
 function sizeAcc(){if(!meAcc||!last||!last.me)return;var me=last.me;
  var mpp=40075016.686*Math.cos(me.lat*Math.PI/180)/Math.pow(2,map.getZoom()+9);
  var px=Math.max(24,Math.min(3000,2*me.accuracy/mpp));var e=meAcc.getElement();e.style.width=e.style.height=Math.round(px)+'px'}
+
+// Walking route: drawn only from coordinates the routing service returned (dotted blue, distinct
+// from shuttle route colours). Fitted once per new route; realtime updates never refit it.
+function walkBounds(d){var c=d.walk.coords;var bb=new maplibregl.LngLatBounds(c[0],c[0]);c.forEach(function(p){bb.extend(p)});
+ if(d.me)bb.extend([d.me.lng,d.me.lat]);return bb}
+function fitWalk(d){if(!d||!d.walk)return;moved=true;map.fitBounds(walkBounds(d),{padding:{top:56,bottom:56,left:40,right:64},maxZoom:17,duration:reduced()?0:600})}
+function drawWalk(d){var btn=document.getElementById('fitwalk');btn.classList.toggle('show',!!d.walk);
+ if(d.walk)btn.setAttribute('aria-label','Fit walking route to '+d.walk.to);
+ if(!styleReady)return;
+ var src=map.getSource('walk');
+ if(!d.walk){if(src){map.removeLayer('walk-line');map.removeLayer('walk-casing');map.removeSource('walk')}walkKey=null;return}
+ var data={type:'Feature',properties:{},geometry:{type:'LineString',coordinates:d.walk.coords}};
+ if(src){if(walkKey!==d.walk.key)src.setData(data)}
+ else{map.addSource('walk',{type:'geojson',data:data});
+  map.addLayer({id:'walk-casing',type:'line',source:'walk',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#fff','line-width':8,'line-opacity':.9}});
+  map.addLayer({id:'walk-line',type:'line',source:'walk',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#1A73E8','line-width':5,'line-dasharray':[0.1,1.6]}})}
+ if(walkKey!==d.walk.key){walkKey=d.walk.key;fitWalk(d)}}
 
 window.update=function(d){
  if(!map)return;var prev=last;last=d;
@@ -219,6 +247,8 @@ window.update=function(d){
  if(d.offMap.length){off.appendChild(H('b',null,'Not on the map'));d.offMap.forEach(function(t){off.appendChild(H('div',null,t))})}
  // Camera: fit once; afterwards follow the focused vehicle only when it leaves the view and the
  // rider has not moved the map. Reconnects and refreshes never reset the view.
+ drawWalk(d);
+ if(d.walk)fitted=true;
  if(!fitted&&points(d).length){fit(d);fitted=true}
  else if(!moved){var f=d.vehicles.filter(function(v){return v.focus})[0];
   var pf=prev&&prev.vehicles.filter(function(v){return v.focus})[0];
@@ -230,6 +260,11 @@ window.update=function(d){
 // Controls and the key.
 (function(){var r=document.getElementById('recenter');r.appendChild(fitIcon());
  r.onclick=function(){moved=false;if(last)fit(last)};
+ var zi=document.getElementById('zin'),zo=document.getElementById('zout'),fw=document.getElementById('fitwalk');
+ zi.appendChild(plusIcon(false));zo.appendChild(plusIcon(true));fw.appendChild(walkIcon());
+ zi.onclick=function(){moved=true;map.zoomIn({duration:reduced()?0:250})};
+ zo.onclick=function(){moved=true;map.zoomOut({duration:reduced()?0:250})};
+ fw.onclick=function(){fitWalk(last)};
  var l=document.getElementById('locate');l.appendChild(crosshair());
  l.onclick=function(){if(!last||last.locate==='off'||last.locate==='denied'||last.locate==='unavailable')wantMe=true;post('locate')};
  var k=document.getElementById('key'),kb=document.getElementById('keybtn');
@@ -250,6 +285,7 @@ window.update=function(d){
  row(sign({kind:'pickup'}),'Your pickup');
  row(sign({kind:'dest'}),'Your drop-off');
  var me=H('span','me');me.style.position='static';row(me,'You (only on this device)');
+ row(H('span','kline'),'Your walking route (from OpenStreetMap routing)');
 })();
 // Website: the page sends data with postMessage; only the embedding page is listened to.
 window.addEventListener('message',function(e){if(e.source===window.parent&&e.data&&e.data.type==='update')window.update(e.data.data)});

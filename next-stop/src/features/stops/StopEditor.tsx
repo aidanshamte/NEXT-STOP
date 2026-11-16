@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { C } from '../../components/Brand';
 import { Button, Card, Field, Icon, s } from '../../components/UI';
 import { amenityIcons, amenityLabels } from '../../catalog';
 import type { Stop } from '../../domain';
 import { actionKey } from '../workspace/types';
 import type { Mutate } from '../workspace/types';
-import { forgetPhoto } from './StopPhoto';
+import PhotoManager from './PhotoManager';
 
 /** Administrator editing of a stop's rider-facing details. Saving any change clears the
  * verification; verifying records the administrator and date. */
@@ -31,7 +29,6 @@ export default function StopEditor({
   const [amenities, setAmenities] = useState<Record<string, string>>(
     Object.fromEntries((stop.amenities || []).map((a) => [a.key, a.detail])),
   );
-  const [photoError, setPhotoError] = useState('');
   const toggle = (key: string) =>
     setAmenities((current) => {
       const next = { ...current };
@@ -39,34 +36,6 @@ export default function StopEditor({
       else next[key] = '';
       return next;
     });
-  async function choosePhoto(camera: boolean) {
-    setPhotoError('');
-    try {
-      const permission = camera
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) throw Error('Photo access was not allowed.');
-      const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 1 };
-      const result = camera
-        ? await ImagePicker.launchCameraAsync(options)
-        : await ImagePicker.launchImageLibraryAsync(options);
-      if (result.canceled || !result.assets[0]) return;
-      // Downscaled and re-encoded on the device: location metadata is not kept.
-      const context = ImageManipulator.manipulate(result.assets[0].uri);
-      context.resize({ width: 1200 });
-      const image = await context.renderAsync();
-      const saved = await image.saveAsync({ compress: 0.7, format: SaveFormat.JPEG, base64: true });
-      if (!saved.base64) throw Error('The photo could not be prepared.');
-      forgetPhoto(org, stop.id);
-      await mutate(
-        '/stops/photo',
-        { stopId: stop.id, contentType: 'image/jpeg', data: saved.base64 },
-        'Photo saved. Verify the stop again when it is correct.',
-      );
-    } catch (e) {
-      setPhotoError((e as Error).message);
-    }
-  }
   return (
     <Card>
       <Text style={s.title}>Edit stop details</Text>
@@ -147,40 +116,13 @@ export default function StopEditor({
         }
       />
       <View style={s.divider} />
-      <Text style={s.heading}>Photo</Text>
-      <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
-        <View style={{ flex: 1, minWidth: 140 }}>
-          <Button
-            secondary
-            icon="camera-outline"
-            label="Take photo"
-            disabled={busy}
-            onPress={() => void choosePhoto(true)}
-          />
-        </View>
-        <View style={{ flex: 1, minWidth: 140 }}>
-          <Button
-            secondary
-            icon="image-outline"
-            label="Choose photo"
-            disabled={busy}
-            onPress={() => void choosePhoto(false)}
-          />
-        </View>
-      </View>
-      {!!stop.has_photo && (
-        <Button
-          secondary
-          icon="trash-outline"
-          label="Remove photo"
-          disabled={busy}
-          onPress={() => {
-            forgetPhoto(org, stop.id);
-            void mutate('/stops/photo/delete', { stopId: stop.id }, 'Photo removed.');
-          }}
-        />
-      )}
-      {!!photoError && <Text style={[s.caption, { color: '#C2381F' }]}>{photoError}</Text>}
+      <PhotoManager
+        key={stop.photo?.version ?? 0}
+        stop={stop}
+        busy={busy}
+        pending={pending}
+        mutate={mutate}
+      />
       <View style={s.divider} />
       <Button
         tone="navy"

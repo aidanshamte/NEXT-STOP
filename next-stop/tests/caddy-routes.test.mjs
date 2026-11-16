@@ -63,3 +63,21 @@ test('the server release package includes every local module and data file the s
     for (const [, dep] of readFileSync(`server/${file}`, 'utf8').matchAll(/from '\.\/([^']+)'/g))
       assert.match(dep, /\.(mjs|json)$/, `${file} imports ${dep}, which the package must copy`);
 });
+
+test('photo uploads fit through Caddy; every other request body stays small', () => {
+  const caddy = readFileSync(new URL('../deploy/Caddyfile', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../server/app.mjs', import.meta.url), 'utf8');
+  const apiLimit = Number(/path === '\/stops\/photo' \? (\d+)/.exec(app)[1]);
+  // Both hostnames: a larger limit for the photo path only, 64 KB for everything else.
+  const photo = [
+    ...caddy.matchAll(/@(\w+) path \/stops\/photo\s+request_body @\1 \{\s+max_size (\d+)KB/g),
+  ];
+  const other = [
+    ...caddy.matchAll(/@(\w+) not path \/stops\/photo\s+request_body @\1 \{\s+max_size 64KB/g),
+  ];
+  assert.equal(photo.length, 2);
+  assert.equal(other.length, 2);
+  for (const m of photo)
+    assert.ok(Number(m[2]) * 1024 >= apiLimit, 'Caddy allows what the API accepts');
+  assert.doesNotMatch(caddy, /request_body \{/, 'no unconditional body limit left');
+});
