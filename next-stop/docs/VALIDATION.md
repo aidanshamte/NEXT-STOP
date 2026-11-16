@@ -187,6 +187,14 @@ Test environment: a throwaway scratchpad database ("Test Institution", "Test Sto
   - Pickup requests before and after all of this: 0 and 0.
   - Stop details: name and **Walk to pickup** come before the photo; the photo shows "Nearby landmark, not the exact boarding spot" and "Photo: Stagophile (Wikimedia Commons) · CC BY-SA 3.0 · Source"; the walking panel has its own map with the route.
   - No console errors and no horizontal overflow. (Fixed on the way: stop details rendered an empty text node when a stop had no amenities or accessibility notes.)
+- **Production (2026-11-16 03:17 UTC, release `f603b5af1980`, commit `f603b5a`):** deploy workflow succeeded; pre-deploy backup `next-stop-2026-11-16T03-16-52-104Z.db`; schema 10 → 11; the new Caddyfile validated before install. From outside:
+  - `/health` 200, schema 11, release `f603b5af1980` on both hostnames; service enabled and active.
+  - Signed out, `/stops/walk`, `/stops/photo` and the new photo routes return 401 JSON on both hostnames.
+  - An 800 KB body to `/stops/photo` now reaches the API (401 signed out) instead of Caddy's 413; 100 KB to any other path is still refused with 413.
+  - `/map.html` has the walking route layer, zoom and Fit walking route; the website's code chunks contain the new photo and walking screens.
+  - `verify-web.mjs`: 17/17.
+  - From the VM, one walking route request to routing.openstreetmap.de between two campus points: HTTP 200 in 0.49 s, 381 m.
+  - Not checked in production: a signed-in walking route and a photo apply/verify, because there is no authorized production test account. The researched Fairfield photos are not applied; an administrator does that from each stop's page.
 - **Not tested here:** physical phones (installed build and Expo Go on iPhone and Android), opening Apple Maps or the Google Maps app itself, VoiceOver/TalkBack and the largest text size, real GPS outdoors, camera and gallery uploads from a phone. These are ACCEPTANCE.md F2 and F9.
 
 ## 3. Not yet tested: needs the owner's accounts, money or devices
