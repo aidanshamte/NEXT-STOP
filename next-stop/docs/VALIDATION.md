@@ -218,6 +218,22 @@ Test environment: a throwaway scratchpad database ("Test Institution", "Test Sto
 - **Automated:** `npm test` 155/155 (new `campus-map.test.mjs`: the shipped file covers all 23 stops once, stores only names, IDs, kinds, positions and links, and never labels anything a boarding point; Blocks 13/17 stay unmatched; suggestion coordinates unchanged; evidence for administrators only, photo links for everyone, other institutions get nothing, riders never receive `import_key`; snapshots leave the stops table unchanged). Lint and typecheck pass.
 - **Browser (local web build, throwaway database, test identities):** **Setup → Suggested boarding points** shows "Official campus map" under the suggestion (Walsh: "Walsh (Thomas J.) Jr. Athletic Center · building · 89 m away", "G3 · parking lot · 60 m away", the note, and "can’t confirm a boarding point"); the Block 17 entry shows why it is unmatched. A rider's Chapel Crosswalk page shows **Official campus photos: Egan Chapel of St. Ignatius Loyola** below the photo, which opens `https://map.concept3d.com/?id=1895#!m/938055`. No console errors, no horizontal overflow.
 
+## 2m. Passed: Fairfield published schedule (2026-11-16, local web)
+
+- **Source:** https://www.fairfield.edu/student-life/campus-services/transportation-and-parking/ read in a browser on 2026-11-16, including the collapsed shuttle sections; the same content as on 2026-11-08; no dates on the page.
+- **Automated:** `npm test` 159/159. New `published-schedule.test.mjs`:
+  - The shipped file records only stated hours, rules, departures and notes (no stop times), keeps the calendar unconfirmed, and leaves the Town weekend closing time unresolved (7 p.m. or 9:50 p.m.).
+  - **Time zones:** Fairfield local times are converted per day: 7:30 a.m. on Monday 16 Nov 2026 is 12:30 UTC (EST); on 6 Jul 2026 it is 11:30 UTC (EDT); 9 a.m. on both 2026 daylight-saving change Sundays is converted correctly. With no date given, "today" is Fairfield's local date: at 03:30 UTC on 17 Nov the day is still 16 Nov.
+  - **Weekday exceptions:** Friday Campus closes 3:30 p.m.; the 11–3:30 hourly-at-:30 rule applies Mon–Fri only; Bellarmine has no Wednesday or weekend service; 1720 Post Road is weekdays only; the Town 9:50 p.m. final departure is weekday-only.
+  - **Separation:** with an administrator time zone, dated period, departures and closure, the administrator's departures are unchanged and not mixed with published times, a closure still marks the day closed, the snapshot has no published data, and the status text never says the service is running. Other institutions get `{configured:false}`. The module writes nothing.
+  - Lint, typecheck and Prettier on changed files pass.
+- **Browser (local web build, throwaway database with the Fairfield routes, test identities):**
+  - **Schedules today (Monday):** "Published schedule · Not live", "Published weekly hours. Not confirmed for today…", the closures list, and the source link with "checked 2026-11-16". Each route card has a "Published schedule · Not live" block, e.g. Campus "Hours: 7:30 AM – 8:30 PM", Town "7:00 AM – 9:50 PM", Bellarmine "8:00 AM – 5:00 PM". The separate "Live: 2 shuttles in service" chip remains.
+  - **Saturday:** Town shows "From 12:00 PM; closing 7:00 PM or 9:50 PM", **Weekend closing time needs confirmation**, the two quotes and the source link; 1720 Post Road and Bellarmine show "No published service on this day".
+  - **Wednesday:** Bellarmine shows no service.
+  - **Barone stop page:** **Scheduled today** shows the published blocks, "Not confirmed for today", and "Times at this stop aren’t published". Fixed on the way: while the timetable loaded, the card briefly said the institution had not published one; it now says "Loading timetable…".
+  - No console errors, no horizontal overflow.
+
 ## 3. Not yet tested: needs the owner's accounts, money or devices
 
 - **Automatic rollback on a failing release** has not been triggered on the VM (only healthy releases were deployed). Budget/alert emails have not fired.

@@ -28,7 +28,7 @@ const PREF_COLUMNS = {
 const DEFAULT_PREFS = { trip_updates: 1, delay_alerts: 1, service_alerts: 1, approach_stops: 1 };
 const WAITING = "('requested','accepted','approaching')";
 
-export function createService({ db, push, clock, fail, hooks = {}, photos }) {
+export function createService({ db, push, clock, fail, hooks = {}, photos, published }) {
   const settings = (org) => {
     const row = db
       .prepare(
@@ -212,7 +212,18 @@ export function createService({ db, push, clock, fail, hooks = {}, photos }) {
 
   function schedule(org, date) {
     const { timezone } = settings(org);
-    if (!timezone) return { configured: false };
+    // An undated schedule the institution publishes (hours, rules, notes), shown separately.
+    const publishedZone = published?.timezone(org);
+    if (!timezone) {
+      if (!publishedZone) return { configured: false };
+      const day = date && validDate(date) ? date : localDate(clock(), publishedZone);
+      return {
+        configured: false,
+        timezone: publishedZone,
+        date: day,
+        published: published.forDay(org, day),
+      };
+    }
     const day = date && validDate(date) ? date : localDate(clock(), timezone);
     const exceptions = db
       .prepare(
@@ -239,6 +250,7 @@ export function createService({ db, push, clock, fail, hooks = {}, photos }) {
       configured: true,
       timezone,
       date: day,
+      ...(publishedZone ? { published: published.forDay(org, day) } : {}),
       closed: closedAll,
       periods,
       activePeriodIds: [...activeIds],

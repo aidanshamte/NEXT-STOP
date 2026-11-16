@@ -6,6 +6,7 @@ import { clock, headway, routeSequence, scheduledAt, weekDates } from '../../dom
 import type { Role, Schedule, Snapshot } from '../../domain';
 import type { Mutate } from '../workspace/types';
 import ScheduleEditor from './ScheduleEditor';
+import { PublishedRoute, PublishedSource } from './PublishedSchedule';
 
 const dayLabel = (date: string, index: number) => {
   if (index === 0) return 'Today';
@@ -91,7 +92,7 @@ export default function Schedules({
         </View>
       )}
       {!!error && !schedule && <StatusChip text={`Timetable unavailable: ${error}`} tone="coral" />}
-      {schedule && !schedule.configured ? (
+      {schedule && !schedule.configured && !schedule.published ? (
         <Card>
           <Icon name="calendar-outline" size={30} color={C.muted} />
           <Text style={s.heading}>No timetable published yet</Text>
@@ -102,34 +103,40 @@ export default function Schedules({
         </Card>
       ) : schedule ? (
         <>
-          <Card style={{ gap: 10 }}>
-            {schedule.closed ? (
-              <StatusChip text="No service on this day" tone="coral" />
-            ) : active.length ? (
-              <StatusChip
-                text={`Timetable: ${active.map((p) => p.name).join(', ')}`}
-                tone="green"
-              />
-            ) : (
-              <StatusChip text="No scheduled service on this day" tone="gray" />
-            )}
-            {dayNotes.map((n) => (
-              <Text key={n.id} style={[s.body, { color: C.navy }]}>
-                {n.kind === 'closed' ? 'Closed' : 'Note'}
-                {n.route_id
-                  ? ` (${data.routes?.find((r) => r.id === n.route_id)?.name || 'route'})`
-                  : ''}
-                {n.note ? `: ${n.note}` : ''}
+          {!!schedule.published && (
+            <PublishedSource published={schedule.published} isToday={isToday} />
+          )}
+          {schedule.configured && (
+            <Card style={{ gap: 10 }}>
+              {schedule.closed ? (
+                <StatusChip text="No service on this day" tone="coral" />
+              ) : active.length ? (
+                <StatusChip
+                  text={`Timetable: ${active.map((p) => p.name).join(', ')}`}
+                  tone="green"
+                />
+              ) : (
+                <StatusChip text="No scheduled service on this day" tone="gray" />
+              )}
+              {dayNotes.map((n) => (
+                <Text key={n.id} style={[s.body, { color: C.navy }]}>
+                  {n.kind === 'closed' ? 'Closed' : 'Note'}
+                  {n.route_id
+                    ? ` (${data.routes?.find((r) => r.id === n.route_id)?.name || 'route'})`
+                    : ''}
+                  {n.note ? `: ${n.note}` : ''}
+                </Text>
+              ))}
+              <Text style={s.caption}>
+                Times are your institution’s published schedule ({schedule.timezone}). Live
+                positions and estimates appear on the {role === 'driver' ? 'Drive' : 'Live'} screen
+                and are labelled “Live”.
               </Text>
-            ))}
-            <Text style={s.caption}>
-              Times are your institution’s published schedule ({schedule.timezone}). Live positions
-              and estimates appear on the {role === 'driver' ? 'Drive' : 'Live'} screen and are
-              labelled “Live”.
-            </Text>
-          </Card>
+            </Card>
+          )}
           {routes.map((route) => {
             const day = schedule.routes?.find((r) => r.route_id === route.id);
+            const publishedDay = schedule.published?.routes.find((r) => r.route_id === route.id);
             const departures = day?.departures || [];
             const sequence = routeSequence(route.id, data.routeStops || [], data.stops);
             const every = headway(departures);
@@ -154,13 +161,15 @@ export default function Schedules({
                       />
                       <Text style={s.title}>{route.name}</Text>
                     </View>
-                    <Text style={s.body}>
-                      {day?.closed
-                        ? 'No service on this day.'
-                        : departures.length
-                          ? `${clock(departures[0], tz)} – ${clock(departures.at(-1) as number, tz)} · ${departures.length} departures${every ? ` · about every ${every} min` : ''}`
-                          : 'No scheduled departures on this day.'}
-                    </Text>
+                    {schedule.configured && (
+                      <Text style={s.body}>
+                        {day?.closed
+                          ? 'No service on this day.'
+                          : departures.length
+                            ? `${clock(departures[0], tz)} – ${clock(departures.at(-1) as number, tz)} · ${departures.length} departures${every ? ` · about every ${every} min` : ''}`
+                            : 'No scheduled departures on this day.'}
+                      </Text>
+                    )}
                     {isToday && inService > 0 && (
                       <StatusChip
                         text={`Live: ${inService} shuttle${inService === 1 ? '' : 's'} in service`}
@@ -200,6 +209,13 @@ export default function Schedules({
                     </Pressable>
                   )}
                 </View>
+                {publishedDay && schedule.published && (
+                  <PublishedRoute
+                    day={publishedDay}
+                    published={schedule.published}
+                    tz={schedule.published.timezone}
+                  />
+                )}
                 {sequence.map(({ stop, onDemand, position }) => {
                   const entry = data.routeStops?.find(
                     (e) => e.route_id === route.id && e.position === position,

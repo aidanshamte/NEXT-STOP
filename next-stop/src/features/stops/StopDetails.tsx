@@ -11,6 +11,8 @@ import ArrivalLine from '../journeys/ArrivalLine';
 import type { Mutate } from '../workspace/types';
 import StopEditor from './StopEditor';
 import StopPhoto from './StopPhoto';
+import { PublishedRoute } from '../schedules/PublishedSchedule';
+import { publishedStatus } from '../schedules/published';
 import WalkPanel from '../walk/WalkPanel';
 import { useWalk } from '../walk/useWalk';
 
@@ -227,7 +229,44 @@ export default function StopDetails({
             <Text style={s.heading}>Scheduled today</Text>
             <Tag text="Timetable" tone="gray" />
           </View>
-          {!schedule?.configured ? (
+          {!schedule?.configured && schedule?.published ? (
+            <>
+              <Text style={s.caption}>{publishedStatus(schedule.published, true)}</Text>
+              {routes.map((route) => {
+                const day = schedule.published?.routes.find((r) => r.route_id === route.id);
+                return (
+                  <View key={route.id} style={{ gap: 6 }}>
+                    <View style={[s.row, { justifyContent: 'flex-start' }]}>
+                      <View
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: 5,
+                          backgroundColor: route.color,
+                        }}
+                      />
+                      <Text style={[s.heading, { flex: 1 }]}>{route.name}</Text>
+                    </View>
+                    {day ? (
+                      <PublishedRoute
+                        day={day}
+                        published={schedule.published!}
+                        tz={schedule.published!.timezone}
+                      />
+                    ) : (
+                      <Text style={s.body}>No published schedule for this route.</Text>
+                    )}
+                  </View>
+                );
+              })}
+              <Text style={s.caption}>
+                Times at this stop aren’t published; listed times are departures from the stop
+                named.
+              </Text>
+            </>
+          ) : !schedule ? (
+            <Text style={s.caption}>Loading timetable…</Text>
+          ) : !schedule.configured ? (
             <Text style={s.body}>Your institution has not published a timetable.</Text>
           ) : (
             upcoming.map(({ route, times, published, closed }) => (

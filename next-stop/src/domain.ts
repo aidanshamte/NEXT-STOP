@@ -256,6 +256,28 @@ export interface Schedule {
   }[];
   departures?: { route_id: string; period_id: string; minute: number }[];
   routes?: { route_id: string; closed: boolean; departures: number[] }[];
+  /** An undated schedule the institution publishes (hours, rules, notes) for this day. Never
+   * live data, and never proof that service runs today unless `calendar.confirmed`. */
+  published?: PublishedDay | null;
+}
+export interface PublishedRouteDay {
+  route_id: string;
+  /** No published hours or departures on this weekday. */
+  noService: boolean;
+  noServiceText: string;
+  hours: {
+    start: number;
+    end: number | null;
+    endConflict?: { text: string; detail: string; options: number[] };
+  }[];
+  rules: { text: string; departures: number[] }[];
+}
+export interface PublishedDay {
+  source: { name: string; url: string };
+  checkedAt: string;
+  timezone: string;
+  calendar: { confirmed: boolean; note: string; closures: string[] };
+  routes: PublishedRouteDay[];
 }
 export interface Share {
   student_id: string;

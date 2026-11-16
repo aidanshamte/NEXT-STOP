@@ -45,7 +45,7 @@ Goal: a verified student and an approved driver, using installed apps on separat
 - [ ] Confirm each boarding point in Dispatch → Routes and stops (stand at the stop, use GPS). No authoritative coordinates were available, so no pins were guessed
 - [ ] Decide whether the existing manual stop "The Circle" is the Barone Campus Center Traffic Circle (if so, pin Barone there and retire the manual stop)
 - [ ] Assign each shuttle its route
-- Schedules, driving paths and arrival estimates are deliberately not imported
+- Driving paths and arrival estimates are deliberately not imported. Fairfield's published hours, frequency wording, explicit departures and notes ship as a read-only published schedule (FAIRFIELD-TIMETABLE.md)
 
 To re-import after the sign changes: edit `server/imports/fairfield-university-shuttles.json`, deploy, then on the VM run `node server/import-routes.mjs --institution <id> --file server/imports/fairfield-university-shuttles.json --dry-run` and then without `--dry-run`. Confirmed stops are never changed by an import.
 
@@ -79,7 +79,8 @@ To re-import after the sign changes: edit `server/imports/fairfield-university-s
 - [x] Stop details: description, accessibility, amenities, photo, administrator verification (`service.test.mjs`)
 - [x] Researched boarding-point suggestions for Fairfield's 23 stops, approved with one tap by an administrator (`suggestions.test.mjs`, FAIRFIELD-STOPS.md)
 - [ ] Approve or correct the 21 Fairfield suggestions and pin Blocks 13 and 17 on site (administrator)
-- [ ] Archive stops; enter Fairfield's real timetable (FAIRFIELD-TIMETABLE.md lists the missing effective dates and times)
+- [x] Fairfield's published schedule (hours, rules, explicit departures, notes; Town weekend conflict flagged) under Schedules and stop details, never claiming service today (`published-schedule.test.mjs`, VALIDATION 2m)
+- [ ] Archive stops; get Fairfield's term and closure dates, exact departures and stop times, and the Town weekend closing time (FAIRFIELD-TIMETABLE.md)
 - [x] Arrival-estimate accuracy measured against real passages, shown to administrators (`eta.test.mjs`)
 - [ ] Measure accuracy on real Fairfield service (ACCEPTANCE.md pass criteria) before calling estimates accurate
 - [x] Capacity and features per vehicle (`service.test.mjs`). A separate vehicle registry is still open

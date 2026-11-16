@@ -13,6 +13,7 @@ import { createEta } from './eta.mjs';
 import { createSafety } from './safety.mjs';
 import { createSuggestions } from './suggestions.mjs';
 import { createCampusMap } from './campus-map.mjs';
+import { createPublishedSchedule } from './published-schedule.mjs';
 import { createAssistance } from './assistance.mjs';
 
 const OPEN_SQL = OPEN_STATUSES.map((v) => `'${v}'`).join(',');
@@ -62,6 +63,8 @@ export function createApp({
   photoData = undefined,
   // Official campus-map reference records (tests inject their own; default: server/imports).
   campusMapData = undefined,
+  // Undated schedules institutions publish (tests inject their own; default: server/imports).
+  publishedScheduleData = undefined,
   // Walking route provider options (tests inject a fake fetch).
   walkingOptions = {},
 } = {}) {
@@ -117,6 +120,10 @@ export function createApp({
     clock,
     fail,
     photos,
+    published: createPublishedSchedule({
+      db,
+      ...(publishedScheduleData ? { data: publishedScheduleData } : {}),
+    }),
     hooks: { vehicleAccessChanged: (tripId) => assistance.vehicleChanged(tripId) },
   });
   const assistance = createAssistance({ db, push, clock, fail });

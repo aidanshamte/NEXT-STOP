@@ -1,0 +1,89 @@
+{
+  "institutionName": "Fairfield University",
+  "timezone": "America/New_York",
+  "checkedAt": "2026-11-16",
+  "source": {
+    "name": "Fairfield University, Transportation and Parking",
+    "url": "https://www.fairfield.edu/student-life/campus-services/transportation-and-parking/"
+  },
+  "method": "Read in a browser on 2026-11-16, including the collapsed Campus, Town and Bellarmine Shuttle sections; same content as on 2026-11-08. The page has no publication, effective or term dates. Only what the page states is recorded: hours, its frequency wording, explicit departure times from the Barone Campus Center, and notes. No intermediate stop times are published, so none are recorded. Days are Monday-first (1 = runs).",
+  "calendar": {
+    "confirmed": false,
+    "note": "The University shuttle operates during the academic year only. The page gives no term or closure dates, so these hours are not confirmed for any particular day. The schedule is subject to change.",
+    "closures": [
+      "Columbus Day weekend",
+      "Thanksgiving weekend",
+      "Christmas semester recess",
+      "Martin Luther King, Jr. Day",
+      "Easter recess",
+      "Spring break"
+    ]
+  },
+  "routes": {
+    "campus-shuttle": {
+      "hours": [
+        { "days": "1111000", "start": "07:30", "end": "20:30" },
+        { "days": "0000100", "start": "07:30", "end": "15:30" },
+        { "days": "0000011", "start": "09:00", "end": "15:30" }
+      ],
+      "rules": [
+        { "days": "1111111", "text": "Generally runs every 30 minutes." },
+        {
+          "days": "1111100",
+          "text": "From 11 a.m. to 3:30 p.m., runs hourly, departing the Barone Campus Center at 30 minutes past each hour.",
+          "departures": ["11:30", "12:30", "13:30", "14:30", "15:30"]
+        }
+      ]
+    },
+    "1720-post-road-shuttle": {
+      "rules": [
+        {
+          "days": "1111100",
+          "text": "Departs the Barone Campus Center for 1720 Post Road.",
+          "departures": ["10:45", "11:45", "12:45", "13:45"]
+        }
+      ],
+      "noServiceText": "Operates Monday through Friday."
+    },
+    "town-shuttle": {
+      "hours": [
+        { "days": "1111100", "start": "07:00", "end": "21:50" },
+        {
+          "days": "0000011",
+          "start": "12:00",
+          "end": null,
+          "endConflict": {
+            "text": "Weekend closing time needs confirmation",
+            "detail": "The page gives two weekend closing times: “runs on the hour beginning at noon Saturday and Sunday until 7 p.m.” and, in the Town Shuttle section, “Saturday - Sunday | 12 p.m. - 9:50 p.m.”",
+            "options": ["19:00", "21:50"]
+          }
+        }
+      ],
+      "rules": [
+        {
+          "days": "1111111",
+          "text": "Departs the Barone Campus Center approximately once every hour. (The page’s introduction says it travels on the hour.)"
+        },
+        {
+          "days": "1111100",
+          "text": "Final departure 9:50 p.m.: stops at the Dolan School of Business, then gives on-demand drop-offs at the Fairfield Train Station overpass, Grasmere Avenue and Post Road, and the Metro Train Station (Alto parking garage side).",
+          "departures": ["21:50"]
+        },
+        {
+          "days": "0000011",
+          "text": "The final 9:50 p.m. departure and its on-demand drop-offs are listed without days; on weekends this depends on the closing time that needs confirmation."
+        }
+      ]
+    },
+    "bellarmine-bus-shuttle": {
+      "hours": [{ "days": "1101100", "start": "08:00", "end": "17:00" }],
+      "rules": [
+        {
+          "days": "1101100",
+          "text": "The 5 p.m. trip provides drop-off service only, at the Bridgeport Train Station and the Barone Campus Center."
+        }
+      ],
+      "noServiceText": "No service on Wednesday, Saturday or Sunday."
+    }
+  }
+}

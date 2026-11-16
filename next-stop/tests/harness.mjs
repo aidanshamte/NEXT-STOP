@@ -10,7 +10,15 @@ const pass = 'service-test-password';
 
 export async function harness(
   t,
-  { clock, suggestionData, photoData, campusMapData, walkingOptions, log } = {},
+  {
+    clock,
+    suggestionData,
+    photoData,
+    campusMapData,
+    publishedScheduleData,
+    walkingOptions,
+    log,
+  } = {},
 ) {
   const dir = mkdtempSync(join(tmpdir(), 'nextstop-service-'));
   const sent = [];
@@ -31,6 +39,7 @@ export async function harness(
     suggestionData,
     photoData,
     campusMapData,
+    publishedScheduleData,
     walkingOptions,
     log,
   });
