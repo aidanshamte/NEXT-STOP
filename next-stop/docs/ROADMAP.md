@@ -66,6 +66,8 @@ To re-import after the sign changes: edit `server/imports/fairfield-university-s
 - [x] Boarding assistance on the pickup request, with driver acknowledgement, staff resolution and administrator-confirmed vehicle accessibility (`assistance.test.mjs`, `assistance-ui.test.mjs`; browser run VALIDATION 2h)
 - [ ] Boarding assistance on physical phones, with VoiceOver/TalkBack and large text: ACCEPTANCE.md F8
 - [x] Stop photos with source/licence records, separate verification, preview size and metadata removal; Walk to pickup with external maps handoff and an OpenStreetMap walking-route preview (`photos.test.mjs`, `walking.test.mjs`; browser run VALIDATION 2j)
+- [x] Provider limit across concurrent riders (queue, timeout, back-off), device-side rounding, clearer preview notice, researched-photo card with licence and source links (VALIDATION 2k)
+- [ ] One-stop iPhone website walkthrough (ACCEPTANCE.md "iPhone website walkthrough"), starting with Barone Campus Center Traffic Circle
 - [ ] Walk to pickup and stop photos on physical phones (installed build and Expo Go): ACCEPTANCE.md F2, F9
 - [ ] Apply and verify the 8 researched Fairfield photos; photograph the boarding spots (all 23 stops; 15 have no photo at all): FAIRFIELD-STOPS.md
 

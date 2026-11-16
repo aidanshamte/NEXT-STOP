@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Image, Pressable, Text, TextInput, View } from 'react-native';
+import { Image, Linking, Pressable, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { C } from '../../components/Brand';
 import { Button, Icon, s } from '../../components/UI';
+import { PHOTO_SHOWS_LABEL } from '../../domain';
 import type { PhotoShows, PhotoSource, Stop } from '../../domain';
 import { actionKey } from '../workspace/types';
 import type { Mutate } from '../workspace/types';
@@ -19,7 +20,7 @@ const SOURCES: { value: Exclude<PhotoSource, ''>; label: string; hint: string }[
 ];
 const SHOWS: { value: Exclude<PhotoShows, ''>; label: string }[] = [
   { value: 'boarding', label: 'The boarding area itself' },
-  { value: 'landmark', label: 'A nearby landmark' },
+  { value: 'landmark', label: PHOTO_SHOWS_LABEL.landmark },
 ];
 interface Draft {
   alt: string;
@@ -163,10 +164,39 @@ export default function PhotoManager({
       {!p && stop.photo_suggestion && !chosen && (
         <View style={{ gap: 8, padding: 12, borderRadius: 14, backgroundColor: '#F2F5F8' }}>
           <Text style={s.heading}>Researched photo available</Text>
+          {stop.photo_suggestion.shows === 'landmark' && (
+            <Text style={[s.caption, { color: '#8A5A00', fontWeight: '700' }]}>
+              {PHOTO_SHOWS_LABEL.landmark}
+            </Text>
+          )}
           <Text style={s.body}>{stop.photo_suggestion.alt}</Text>
+          <Text style={s.caption}>Credit: {stop.photo_suggestion.credit}</Text>
           <Text style={s.caption}>
-            {stop.photo_suggestion.credit} · {stop.photo_suggestion.license}. How it was matched:{' '}
-            {stop.photo_suggestion.match}
+            Licence:{' '}
+            {stop.photo_suggestion.licenseUrl ? (
+              <Text
+                accessibilityRole="link"
+                onPress={() => void Linking.openURL(stop.photo_suggestion!.licenseUrl!)}
+                style={{ color: C.navy, textDecorationLine: 'underline' }}
+              >
+                {stop.photo_suggestion.license}
+              </Text>
+            ) : (
+              stop.photo_suggestion.license
+            )}
+            {' · '}
+            <Text
+              accessibilityRole="link"
+              onPress={() => void Linking.openURL(stop.photo_suggestion!.sourceUrl)}
+              style={{ color: C.navy, textDecorationLine: 'underline' }}
+            >
+              Original file
+            </Text>
+          </Text>
+          <Text style={s.caption}>How it was matched: {stop.photo_suggestion.match}</Text>
+          <Text style={s.caption}>
+            Adding it doesn’t verify it. Riders see it only after you check it on this page and
+            verify it.
           </Text>
           <Button
             secondary

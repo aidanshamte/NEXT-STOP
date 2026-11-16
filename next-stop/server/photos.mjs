@@ -339,6 +339,7 @@ export function createPhotos({ db, clock, fail, data = loadPhotoSuggestions() })
           shows: p.shows,
           credit: p.credit,
           license: p.license,
+          licenseUrl: p.licenseUrl,
           sourceUrl: p.sourceUrl,
           match: p.match,
           researchedAt: p.researchedAt,

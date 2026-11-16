@@ -35,8 +35,10 @@ const MIN_ROUTE_GAP_MS = 15000;
 /**
  * Walking directions to one boarding point. Location permission is asked only when the rider
  * starts this (never on launch). The device position stays in memory on this device while the
- * panel is open: it is sent, rounded to about 10 m, only to request the route preview, and
- * everything is cleared when the rider closes the panel. It never touches a pickup request.
+ * panel is open. It is rounded here, on the device, to 4 decimal places (about 10 m) and sent with
+ * the stop id only to request the route preview; the server passes the rounded position and the
+ * boarding point to the named routing provider and keeps neither. Everything is cleared when the
+ * rider closes the panel. It never touches a pickup request.
  */
 export function useWalk(org: string): Walk {
   const [target, setTarget] = useState<WalkTarget | null>(null);
@@ -139,7 +141,7 @@ export function useWalk(org: string): Walk {
       setPhase((p) => (p === 'route' ? p : 'routing'));
       try {
         const result = await api<WalkRoute>(
-          `/stops/walk?institutionId=${encodeURIComponent(org)}&stopId=${encodeURIComponent(to.id)}&lat=${from.lat.toFixed(5)}&lng=${from.lng.toFixed(5)}`,
+          `/stops/walk?institutionId=${encodeURIComponent(org)}&stopId=${encodeURIComponent(to.id)}&lat=${from.lat.toFixed(4)}&lng=${from.lng.toFixed(4)}`,
         );
         if (run !== generation.current) return;
         setRoute(result);

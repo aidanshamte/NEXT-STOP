@@ -33,6 +33,7 @@ export interface Stop {
     shows: PhotoShows;
     credit: string;
     license: string;
+    licenseUrl?: string | null;
     sourceUrl: string;
     match: string;
     researchedAt: string | null;
@@ -53,6 +54,12 @@ export interface Stop {
 }
 export type PhotoShows = '' | 'boarding' | 'landmark';
 export type PhotoSource = '' | 'own' | 'institution' | 'licensed';
+/** What riders are told a stop photo shows. */
+export const PHOTO_SHOWS_LABEL: Record<Exclude<PhotoShows, ''>, string> = {
+  landmark: 'Nearby landmark—not the boarding spot',
+  boarding: 'Boarding area',
+};
+
 export interface StopPhotoInfo {
   /** Changes whenever the image is replaced; clients cache images by it. */
   version: number;

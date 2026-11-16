@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Image, Linking, Text, View } from 'react-native';
 import { C, Mark } from '../../components/Brand';
 import { Icon, s } from '../../components/UI';
-import { photoCredit } from '../../domain';
+import { PHOTO_SHOWS_LABEL, photoCredit } from '../../domain';
 import type { Stop } from '../../domain';
 import { api } from '../../services/api';
 
@@ -40,12 +40,7 @@ function usePhoto(org: string, stop: Stop, size: 'thumb' | 'full') {
   return { uri, failed: failed === key, has };
 }
 
-const shownText = (stop: Stop) =>
-  stop.photo?.shows === 'landmark'
-    ? 'Nearby landmark, not the exact boarding spot'
-    : stop.photo?.shows === 'boarding'
-      ? 'Boarding area'
-      : '';
+const shownText = (stop: Stop) => (stop.photo?.shows ? PHOTO_SHOWS_LABEL[stop.photo.shows] : '');
 
 /** Branded stand-in when a stop has no verified photo (or it could not load). */
 function Fallback({ name, compact }: { name: string; compact?: boolean }) {

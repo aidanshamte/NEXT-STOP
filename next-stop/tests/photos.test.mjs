@@ -246,6 +246,8 @@ test('researched photos are applied by an administrator and still need verificat
     student = h.as('northbridge-student');
   let stop = (await admin.snapshot()).stops.find((s) => s.id === 'northbridge-0');
   assert.equal(stop.photo_suggestion.credit, 'Example Author');
+  for (const k of ['alt', 'shows', 'credit', 'license', 'licenseUrl', 'sourceUrl', 'match'])
+    assert.equal(stop.photo_suggestion[k], entry[k], `the admin sees the exact ${k}`);
   assert.equal(
     (await student.snapshot()).stops.find((s) => s.id === 'northbridge-0').photo_suggestion,
     undefined,
@@ -277,6 +279,9 @@ test('researched photos are applied by an administrator and still need verificat
   assert.equal(stop.photo.verified, false);
   assert.equal(stop.photo.source, 'licensed');
   assert.equal(stop.photo.license, 'CC BY 4.0');
+  assert.equal(stop.photo.shows, entry.shows, 'applied with the researched label, not upgraded');
+  assert.equal(stop.photo.licenseUrl, entry.licenseUrl);
+  assert.equal(stop.photo.sourceUrl, entry.sourceUrl);
   assert.deepEqual(stop.photo.missing, []);
   assert.equal((await student.snapshot()).stops.find((s) => s.id === 'northbridge-0').has_photo, 0);
   assert.equal(

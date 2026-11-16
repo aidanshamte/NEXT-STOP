@@ -61,7 +61,7 @@ Shipped in `server/imports/fairfield-university-stop-photos.json` with the image
 
 Source rules: Wikimedia Commons only (openly licensed; author, licence and link recorded and shown to riders). No search-engine images, no AI-generated images. Each photo was opened and checked against its Commons description, visible signage and, where present, the camera geotag. Wikimedia's resized copies are used (1280 px and a 500 px preview) with metadata removed.
 
-None of these photos shows the spot where the shuttle stops. Every one is marked **Nearby landmark, not the exact boarding spot**.
+None of these photos shows the spot where the shuttle stops. Every one is marked **Nearby landmark—not the boarding spot**.
 
 | Stop                                      | Photo                                                                                                                                  | Author · licence                            | How it was matched                                                                                           |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |

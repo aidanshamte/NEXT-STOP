@@ -164,6 +164,86 @@ test('walking route preview', async (t) => {
   h.app.realtime.invalidate = original;
 });
 
+test('the provider limit holds across concurrent riders', async (t) => {
+  // Real clock and timers: four different riders ask at the same instant.
+  const starts = [];
+  let mode = 'ok';
+  const fetchImpl = async (url, init) => {
+    starts.push(Date.now());
+    if (mode === '429') return { ok: false, status: 429, json: async () => ({}) };
+    if (mode === 'hang')
+      return new Promise((_, reject) =>
+        init.signal.addEventListener('abort', () => reject(init.signal.reason)),
+      );
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        code: 'Ok',
+        routes: [
+          {
+            distance: 300,
+            duration: 220,
+            geometry: {
+              coordinates: [
+                [-73.247, 41.161],
+                [-73.246, 41.162],
+              ],
+            },
+          },
+        ],
+      }),
+    };
+  };
+  const h = await harness(t, { walkingOptions: { fetchImpl, timeoutMs: 300 } });
+  const riders = [
+    'northbridge-student',
+    'northbridge-student2',
+    'northbridge-driver',
+    'northbridge-admin',
+  ];
+  const ask = (id, lng = -73.247) =>
+    h.as(id).get('/stops/walk', `&stopId=northbridge-1&lat=41.161&lng=${lng}`);
+
+  await t.test(
+    'requests queue 1.1 s apart; one that would wait over 2.5 s is turned away',
+    async () => {
+      const results = await Promise.all(riders.map((id) => ask(id)));
+      const statuses = results.map((r) => r.status).sort();
+      assert.deepEqual(statuses, [200, 200, 200, 503], 'three served, the fourth refused');
+      assert.match(results.find((r) => r.status === 503).data.error, /busy/);
+      assert.equal(starts.length, 3, 'the refused rider never reached the provider');
+      for (let i = 1; i < starts.length; i++)
+        assert.ok(starts[i] - starts[i - 1] >= 1000, `gap ${starts[i] - starts[i - 1]} ms`);
+    },
+  );
+
+  await t.test('a 429 from the provider pauses calls for everyone', async () => {
+    await new Promise((r) => setTimeout(r, 3500)); // let the queue and per-rider gaps clear
+    starts.length = 0;
+    mode = '429';
+    const first = await ask('northbridge-student', -73.2471);
+    assert.equal(first.status, 503);
+    mode = 'ok';
+    const second = await ask('northbridge-student2', -73.2472);
+    assert.equal(second.status, 503);
+    assert.match(second.data.error, /busy/);
+    assert.equal(starts.length, 1, 'no provider call during the pause');
+  });
+
+  await t.test('a provider that never answers times out with a 503', async () => {
+    const h2 = await harness(t, { walkingOptions: { fetchImpl, timeoutMs: 300 } });
+    mode = 'hang';
+    const began = Date.now();
+    const r = await h2
+      .as('northbridge-student')
+      .get('/stops/walk', '&stopId=northbridge-1&lat=41.161&lng=-73.247');
+    assert.equal(r.status, 503);
+    assert.match(r.data.error, /could not be reached/);
+    assert.ok(Date.now() - began < 3000);
+  });
+});
+
 test('external walking directions send only the boarding point', () => {
   const stop = { lat: 41.1599301, lng: -73.2579 };
   const ios = directionsLinks(stop, 'ios');
@@ -203,6 +283,24 @@ test('GPS fixes are checked for age and accuracy before routing', () => {
   const summary = routeSummary({ distance: 412, duration: 297 });
   assert.match(summary, /walking estimate/);
   assert.doesNotMatch(summary, /arriv|shuttle|accessible|step-free/i);
+});
+
+test('the app rounds the position on the device and names where it goes', () => {
+  const hook = readFileSync(new URL('../src/features/walk/useWalk.ts', import.meta.url), 'utf8');
+  assert.match(hook, /lat=\$\{from\.lat\.toFixed\(4\)\}&lng=\$\{from\.lng\.toFixed\(4\)\}/);
+  assert.doesNotMatch(hook, /toFixed\([5-9]\)/);
+  const panel = readFileSync(
+    new URL('../src/features/walk/WalkPanel.tsx', import.meta.url),
+    'utf8',
+  ).replace(/\s+/g, ' ');
+  for (const phrase of [
+    'receives only the boarding point',
+    'rounded on this device to about 10 m',
+    'and the boarding point go through the NEXT STOP server',
+    'FOSSGIS e.V. (routing.openstreetmap.de)',
+    'doesn’t log or save either',
+  ])
+    assert.ok(panel.includes(phrase), phrase);
 });
 
 test('walking directions code never touches pickup requests', () => {

@@ -6,9 +6,15 @@
 // "fix the map" link; the routes here are proxied through this server so the limit is enforced
 // in one place and the provider never sees a rider's address or session.
 //
-// Privacy: the rider's position arrives in the query of one GET request, is rounded to 4 decimal
-// places (about 10 m) before it is sent to the provider, and is not stored, logged or broadcast.
-// The request log records the path only. GET is used so no realtime refresh is triggered.
+// Privacy: the app rounds the rider's position to 4 decimal places (about 10 m) on the device
+// before sending it in the query of one GET request; this server rounds again (for any other
+// client) before passing it and the stop's boarding point to the provider. Neither is stored,
+// logged or broadcast: the request log records the path only, Caddy has no access log, and
+// nothing is cached. GET is used so no realtime refresh is triggered.
+//
+// Provider limit: one request per 1.1 s for the whole backend (see reserve()), at most 2.5 s of
+// queueing, an 8 s timeout, and a 60 s pause if the provider answers 429. Every failure is a
+// 503 with a message; the app then keeps offering the external maps link.
 //
 // The destination is always the stop's confirmed boarding point from the database, never a
 // point from the client. Only a route the provider returned is sent back: if there is none, the
@@ -17,7 +23,10 @@
 // described as accessible.
 export const WALK_MAX_METERS = 20000;
 const ROUND = 1e4;
-const PROVIDER_GAP_MS = 1100;
+export const PROVIDER_GAP_MS = 1100;
+export const PROVIDER_MAX_QUEUE_MS = 2500;
+export const PROVIDER_TIMEOUT_MS = 8000;
+export const PROVIDER_BACKOFF_MS = 60000;
 const USER_GAP_MS = 3000;
 const USER_PER_HOUR = 60;
 
@@ -36,8 +45,10 @@ export function createWalking({
   baseUrl = process.env.WALK_ROUTING_URL || 'https://routing.openstreetmap.de/routed-foot',
   enabled = process.env.WALK_ROUTING !== 'off',
   userAgent = 'NEXT-STOP-shuttle-app/1.0 (walking route preview; +https://nextstop.software)',
+  sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+  timeoutMs = PROVIDER_TIMEOUT_MS,
 }) {
-  let lastProviderCall = 0;
+  let nextProviderSlot = 0;
   const perUser = new Map();
 
   function admit(uid, now) {
@@ -51,21 +62,37 @@ export function createWalking({
     if (perUser.size > 5000) perUser.clear();
   }
 
+  // Reserves the next provider slot. The reservation is made synchronously (before any await),
+  // so concurrent route lookups from different riders queue at least PROVIDER_GAP_MS apart; the API is
+  // a single Node process (see AGENTS.md), so this holds across the whole backend. A rider who
+  // would wait longer than PROVIDER_MAX_QUEUE_MS is turned away at once instead of queued.
+  function reserve() {
+    const now = clock();
+    const slot = Math.max(now, nextProviderSlot);
+    if (slot - now > PROVIDER_MAX_QUEUE_MS)
+      fail(503, 'The walking route service is busy. Try again in a moment.');
+    nextProviderSlot = slot + PROVIDER_GAP_MS;
+    return slot;
+  }
+
   async function route(from, to) {
-    // One request per second to the provider, shared by every rider.
-    const wait = lastProviderCall + PROVIDER_GAP_MS - clock();
-    if (wait > 2500) fail(503, 'The walking route service is busy. Try again in a moment.');
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-    lastProviderCall = clock();
+    const slot = reserve();
+    // Timers can fire a little early; never start before the reserved slot.
+    for (let left = slot - clock(); left > 0; left = slot - clock()) await sleep(left);
     const url = `${baseUrl}/route/v1/foot/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&alternatives=false&steps=false`;
     let response;
     try {
       response = await fetchImpl(url, {
         headers: { 'User-Agent': userAgent, Accept: 'application/json' },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch {
       fail(503, 'The walking route service could not be reached.');
+    }
+    if (response.status === 429) {
+      // The provider asked us to slow down: stop calling it for a while, for everyone.
+      nextProviderSlot = Math.max(nextProviderSlot, clock() + PROVIDER_BACKOFF_MS);
+      fail(503, 'The walking route service is busy. Try again in a minute.');
     }
     let body = null;
     try {

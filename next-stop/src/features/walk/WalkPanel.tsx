@@ -223,9 +223,11 @@ export default function WalkPanel({
         </Text>
       )}
       <Text style={[s.caption, { fontSize: 11 }]}>
-        The maps app receives only the boarding point; it finds your position itself if you allow
-        it. For the preview here, your position, rounded to about 10 m, is sent through NEXT STOP to
-        the OpenStreetMap routing service (FOSSGIS). It isn’t saved or shared with drivers.
+        {`${links.primary.app} or ${links.alternate.app} receives only the boarding point and finds your position itself. `}
+        For the route preview, your position, rounded on this device to about 10 m, and the boarding
+        point go through the NEXT STOP server to the OpenStreetMap routing service run by FOSSGIS
+        e.V. (routing.openstreetmap.de), which sees our server, not you. NEXT STOP doesn’t log or
+        save either, and drivers never see them.
         {route ? ' Route © OpenStreetMap contributors. ' : ' '}
         {route && (
           <Text
