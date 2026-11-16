@@ -1,7 +1,7 @@
 {
   "institutionName": "Fairfield University",
   "researchedAt": "2026-11-08",
-  "method": "No published source gives Fairfield shuttle boarding points: fairfield.edu lists stop names only, OpenStreetMap has no Fairfield University shuttle stops, the Concept3D campus map and TripShot tracker were not used (no public data access), and the 2023 parking-map brochure link returns 404. Every point below is a suggestion derived from mapped features matching the stop name. None is confirmed: an administrator approves each one, ideally after checking it on site.",
+  "method": "No published source gives Fairfield shuttle boarding points: fairfield.edu lists stop names only, OpenStreetMap has no Fairfield University shuttle stops, the TripShot tracker was not used (no public data access), the Fairfield campus map (Concept3D, checked in a browser on 2026-11-16; see fairfield-university-campus-map.json) marks buildings and lots but no shuttle stops, and the 2023 parking-map brochure link returns 404. Every point below is a suggestion derived from mapped features matching the stop name. None is confirmed: an administrator approves each one, ideally after checking it on site.",
   "confidence": {
     "high": "A mapped road feature matches the stop name and is the only candidate.",
     "medium": "The named place is certain; the exact curb or boarding side is inferred.",
@@ -23,7 +23,7 @@
       "lat": 41.162236,
       "lng": -73.257477,
       "confidence": "low",
-      "basis": "Marked crosswalk (OSM node 8338460224) between the surface lot west of the Walsh Athletic Center and the building. \"Walsh Lot\" is not named on any map found.",
+      "basis": "Marked crosswalk (OSM node 8338460224) between the surface lot west of the Walsh Athletic Center and the building. \"Walsh Lot\" is not named on any map found; the Fairfield campus map calls the lot west of the building G3.",
       "source": "OpenStreetMap (© OpenStreetMap contributors, ODbL), queried 2026-11-08"
     },
     "dolan-campus-circle": {
@@ -72,7 +72,7 @@
       "lat": 41.161489,
       "lng": -73.260737,
       "confidence": "low",
-      "basis": "Marked crosswalk (OSM node 6996981727) beside Jogues Hall. The Health Center is not mapped, so the boarding side is unknown.",
+      "basis": "Marked crosswalk (OSM node 6996981727) beside Jogues Hall. The Fairfield campus map puts the Health & Wellness Center south-west of Jogues, on the other side from this crossing, so the boarding side is unknown.",
       "source": "OpenStreetMap (© OpenStreetMap contributors, ODbL), queried 2026-11-08"
     },
     "campion-crosswalk": {

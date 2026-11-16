@@ -38,6 +38,24 @@ export interface Stop {
     match: string;
     researchedAt: string | null;
   };
+  /** A link to the institution's official photos of this stop's landmark (not copied here). */
+  campus_photos?: { name: string; url: string; source: string };
+  /** Administrators only: matching records from the official campus map, as evidence. None is
+   * a shuttle boarding point (`boardingPoint` is always false). */
+  campus_map?: {
+    source: string;
+    checkedAt: string | null;
+    note: string;
+    boardingPoint: false;
+    records: {
+      locationId: number;
+      name: string;
+      kind: 'building' | 'parking' | 'entrance' | 'viewpoint' | 'campus';
+      url: string;
+      /** Metres from the stop's pin, or from its suggestion while it is a draft. */
+      distance: number | null;
+    }[];
+  };
   /** Administrators only: how the pin was set, and a researched suggestion for a draft stop. */
   import_key?: string | null;
   pin_source?: string;

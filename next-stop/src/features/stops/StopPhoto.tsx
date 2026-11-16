@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Image, Linking, Text, View } from 'react-native';
+import { Image, Linking, Pressable, Text, View } from 'react-native';
 import { C, Mark } from '../../components/Brand';
 import { Icon, s } from '../../components/UI';
 import { PHOTO_SHOWS_LABEL, photoCredit } from '../../domain';
@@ -145,6 +145,25 @@ export default function StopPhoto({ org, stop }: { org: string; stop: Stop }) {
             </Text>
           )}
         </View>
+      )}
+      {!!stop.campus_photos && (
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`Official campus photos of ${stop.campus_photos.name}, on the ${stop.campus_photos.source}`}
+          accessibilityHint="Opens the campus map"
+          onPress={() => void Linking.openURL(stop.campus_photos!.url)}
+          style={[s.row, { justifyContent: 'flex-start', gap: 6, paddingVertical: 4 }]}
+        >
+          <Icon name="images-outline" size={16} color={C.navy} />
+          <Text
+            style={[
+              s.caption,
+              { flex: 1, color: C.navy, fontWeight: '600', textDecorationLine: 'underline' },
+            ]}
+          >
+            Official campus photos: {stop.campus_photos.name}
+          </Text>
+        </Pressable>
       )}
     </View>
   );

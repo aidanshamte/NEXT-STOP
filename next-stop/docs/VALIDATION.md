@@ -212,6 +212,12 @@ Test environment: a throwaway scratchpad database ("Test Institution", "Test Sto
   - Walk to pickup: "About 3 min walk · 220 m (walking estimate)"; pickup requests 0 before and after; no console errors.
 - **Not tested here:** any phone. The iPhone website walkthrough in ACCEPTANCE.md is for the owner's phone, and its results will go in their own section, apart from these local results, once reported.
 
+## 2l. Passed: Fairfield campus map as evidence (2026-11-16, local web)
+
+- **Research:** the Fairfield Concept3D map was read in headless Chrome as a visitor (search box, location pages, the map centre on each pin). No API key was used and no API was called directly. 29 place records and 33 lot records were checked; 13 stops matched, 10 did not (see FAIRFIELD-STOPS.md). The map has no shuttle stops, block numbers or step-free route information.
+- **Automated:** `npm test` 155/155 (new `campus-map.test.mjs`: the shipped file covers all 23 stops once, stores only names, IDs, kinds, positions and links, and never labels anything a boarding point; Blocks 13/17 stay unmatched; suggestion coordinates unchanged; evidence for administrators only, photo links for everyone, other institutions get nothing, riders never receive `import_key`; snapshots leave the stops table unchanged). Lint and typecheck pass.
+- **Browser (local web build, throwaway database, test identities):** **Setup → Suggested boarding points** shows "Official campus map" under the suggestion (Walsh: "Walsh (Thomas J.) Jr. Athletic Center · building · 89 m away", "G3 · parking lot · 60 m away", the note, and "can’t confirm a boarding point"); the Block 17 entry shows why it is unmatched. A rider's Chapel Crosswalk page shows **Official campus photos: Egan Chapel of St. Ignatius Loyola** below the photo, which opens `https://map.concept3d.com/?id=1895#!m/938055`. No console errors, no horizontal overflow.
+
 ## 3. Not yet tested: needs the owner's accounts, money or devices
 
 - **Automatic rollback on a failing release** has not been triggered on the VM (only healthy releases were deployed). Budget/alert emails have not fired.

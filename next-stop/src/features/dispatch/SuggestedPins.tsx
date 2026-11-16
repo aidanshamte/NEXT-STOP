@@ -5,6 +5,7 @@ import { Button, Card, Tag, s } from '../../components/UI';
 import type { Tone } from '../../components/UI';
 import type { Stop } from '../../domain';
 import type { Mutate } from '../workspace/types';
+import CampusMapEvidence from '../stops/CampusMapEvidence';
 
 const CONFIDENCE: Record<'high' | 'medium' | 'low', { label: string; tone: Tone }> = {
   high: { label: 'High confidence', tone: 'green' },
@@ -61,6 +62,7 @@ export default function SuggestedPins({
             Source: {suggestion.source}
             {suggestion.researchedAt ? ` · researched ${suggestion.researchedAt}` : ''}
           </Text>
+          <CampusMapEvidence stop={stop} />
           <Button
             icon="checkmark-circle-outline"
             label="Approve suggested location"
@@ -104,9 +106,12 @@ export default function SuggestedPins({
           <View style={s.divider} />
           <Text style={s.heading}>No suggestion found</Text>
           {unresolved.map((u) => (
-            <Text key={u.id} style={s.caption}>
-              {u.name}: {u.unresolved} Pin it on site with “Set boarding point” below.
-            </Text>
+            <View key={u.id} style={{ gap: 6 }}>
+              <Text style={s.caption}>
+                {u.name}: {u.unresolved} Pin it on site with “Set boarding point” below.
+              </Text>
+              <CampusMapEvidence stop={u} />
+            </View>
           ))}
         </>
       )}

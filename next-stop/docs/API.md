@@ -106,7 +106,7 @@ No diagnosis is asked for. Visible only to the rider, the driver assigned to the
 - `POST /schedule/offsets` (admin): `routeId`, `offsets: [{position, minutes|null}]`, non-decreasing along the route.
 - `POST /schedule/exception` (admin): `date`, `kind` (`closed`|`note`), `note`, optional `routeId`. `POST /schedule/exception/delete`.
 
-Snapshot additions: `settings`, `demand` (waiting counts per stop, no identities), `alerts`, `favorites`, `prefs`, `rideCount`, stop details (`amenities`, verification, `has_photo`, `photo` record: riders get verified photos only; admins also get `photo_suggestion`), trip `onboard`/`reserved`/`features`, route-stop `offset_minutes`.
+Snapshot additions: `settings`, `demand` (waiting counts per stop, no identities), `alerts`, `favorites`, `prefs`, `rideCount`, stop details (`amenities`, verification, `has_photo`, `photo` record: riders get verified photos only; admins also get `photo_suggestion`), `campus_photos` (`{name,url,source}`: a link to the institution's official campus-map page for the stop's landmark; no copied photos), admin-only `campus_map` (`{source,checkedAt,note,boardingPoint:false,records:[{locationId,name,kind,url,distance}]}`, from `server/imports/*-campus-map.json`; evidence only, never a boarding point; read-only), trip `onboard`/`reserved`/`features`, route-stop `offset_minutes`.
 
 ## Arrival estimates (stage 2)
 

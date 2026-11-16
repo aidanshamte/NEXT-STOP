@@ -8,7 +8,10 @@ import { seedInstitutions } from './fixtures.mjs';
 
 const pass = 'service-test-password';
 
-export async function harness(t, { clock, suggestionData, photoData, walkingOptions, log } = {}) {
+export async function harness(
+  t,
+  { clock, suggestionData, photoData, campusMapData, walkingOptions, log } = {},
+) {
   const dir = mkdtempSync(join(tmpdir(), 'nextstop-service-'));
   const sent = [];
   const transport = {
@@ -27,6 +30,7 @@ export async function harness(t, { clock, suggestionData, photoData, walkingOpti
     clock,
     suggestionData,
     photoData,
+    campusMapData,
     walkingOptions,
     log,
   });

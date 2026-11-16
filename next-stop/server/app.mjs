@@ -12,6 +12,7 @@ import { createWalking } from './walking.mjs';
 import { createEta } from './eta.mjs';
 import { createSafety } from './safety.mjs';
 import { createSuggestions } from './suggestions.mjs';
+import { createCampusMap } from './campus-map.mjs';
 import { createAssistance } from './assistance.mjs';
 
 const OPEN_SQL = OPEN_STATUSES.map((v) => `'${v}'`).join(',');
@@ -59,6 +60,8 @@ export function createApp({
   suggestionData = undefined,
   // Researched stop photos (tests inject their own; default: server/imports).
   photoData = undefined,
+  // Official campus-map reference records (tests inject their own; default: server/imports).
+  campusMapData = undefined,
   // Walking route provider options (tests inject a fake fetch).
   walkingOptions = {},
 } = {}) {
@@ -122,6 +125,7 @@ export function createApp({
     db,
     ...(suggestionData ? { data: suggestionData } : {}),
   });
+  const campusMap = createCampusMap({ db, ...(campusMapData ? { data: campusMapData } : {}) });
   const safety = createSafety({ db, push, clock, fail, audience: service.audience });
   // Ends shares whose time limit passed or whose single ride is over.
   const endShares = () =>
@@ -381,7 +385,7 @@ export function createApp({
         // Draft stops (no confirmed boarding point) are visible to administrators only.
         const stops = db
           .prepare(
-            `SELECT id,institution_id,name,lat,lng,position,status,note,description,accessibility,amenities,details_verified_at,details_verified_by${member.role === 'admin' ? ',import_key,pin_source,pinned_at' : ''} FROM stops WHERE institution_id=? ${member.role === 'admin' ? '' : "AND status='confirmed'"} ORDER BY position`,
+            `SELECT id,institution_id,name,lat,lng,position,status,note,description,accessibility,amenities,details_verified_at,details_verified_by,import_key${member.role === 'admin' ? ',pin_source,pinned_at' : ''} FROM stops WHERE institution_id=? ${member.role === 'admin' ? '' : "AND status='confirmed'"} ORDER BY position`,
           )
           .all(org);
         const routes = db
@@ -472,11 +476,19 @@ export function createApp({
           approved: true,
           stops: service
             .decorateStops(
-              member.role === 'admin' ? suggestions.decorate(org, stops) : stops,
+              campusMap.decorate(
+                org,
+                member.role === 'admin' ? suggestions.decorate(org, stops) : stops,
+                { admin: member.role === 'admin' },
+              ),
               member,
             )
             .map((stop) => {
-              if (member.role !== 'admin') return stop;
+              if (member.role !== 'admin') {
+                // The import key is only needed above, to find campus-map links.
+                const { import_key: _key, ...rest } = stop;
+                return rest;
+              }
               const photoSuggestion = photos.suggestion(org, stop, !!stop.photo);
               return photoSuggestion ? { ...stop, photo_suggestion: photoSuggestion } : stop;
             }),

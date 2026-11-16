@@ -69,6 +69,8 @@ To re-import after the sign changes: edit `server/imports/fairfield-university-s
 - [x] Provider limit across concurrent riders (queue, timeout, back-off), device-side rounding, clearer preview notice, researched-photo card with licence and source links (VALIDATION 2k)
 - [ ] One-stop iPhone website walkthrough (ACCEPTANCE.md "iPhone website walkthrough"), starting with Barone Campus Center Traffic Circle
 - [ ] Walk to pickup and stop photos on physical phones (installed build and Expo Go): ACCEPTANCE.md F2, F9
+- [x] Fairfield campus map (Concept3D) compared with all 23 stops: evidence for administrators and Official campus photos links; no coordinates changed (FAIRFIELD-STOPS.md, `campus-map.test.mjs`, VALIDATION 2l)
+- [ ] Confirm the campus-map questions in FAIRFIELD-STOPS.md (Walsh Lot, DSB Lower Lot, behind Canisius, Jogues & Health Center side, Blocks 13/17)
 - [ ] Apply and verify the 8 researched Fairfield photos; photograph the boarding spots (all 23 stops; 15 have no photo at all): FAIRFIELD-STOPS.md
 
 ## Milestone 3: institution operations

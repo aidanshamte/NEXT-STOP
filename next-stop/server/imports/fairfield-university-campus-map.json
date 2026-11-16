@@ -1,0 +1,326 @@
+{
+  "institutionName": "Fairfield University",
+  "checkedAt": "2026-11-16",
+  "source": {
+    "name": "Fairfield University campus map (Concept3D)",
+    "url": "https://map.concept3d.com/?id=1895",
+    "locationUrl": "https://map.concept3d.com/?id=1895#!m/{id}"
+  },
+  "method": "Read in a browser as a visitor: searched each stop’s place names, opened each location, and recorded its official name, location ID and pin position (the map centres on the pin). Lot positions came the same way. No shuttle stops, shuttle category, block numbers or step-free route information appear on the map. Only names, IDs, positions and links are kept here: the map’s descriptions and photos are not copied (Concept3D end-user terms §4.2; the photos carry no reuse licence), so riders get an “Official campus photos” link instead.",
+  "stops": {
+    "barone-traffic-circle": {
+      "records": [
+        {
+          "locationId": 938035,
+          "name": "Barone (John A.) Campus Center",
+          "kind": "building",
+          "lat": 41.15918,
+          "lng": -73.257713
+        },
+        {
+          "locationId": 574400,
+          "name": "Barone Campus Center",
+          "kind": "viewpoint",
+          "lat": 41.159485,
+          "lng": -73.257614
+        }
+      ],
+      "photos": 938035,
+      "note": "The map marks the building and a 360° view point beside it, not a shuttle stop. The suggested point on the Loyola Drive loop is 85 m from the building pin."
+    },
+    "walsh-lot-crosswalk": {
+      "records": [
+        {
+          "locationId": 532945,
+          "name": "Walsh (Thomas J.) Jr. Athletic Center",
+          "kind": "building",
+          "lat": 41.162685,
+          "lng": -73.256599
+        },
+        {
+          "locationId": 533059,
+          "name": "G3",
+          "kind": "parking",
+          "lat": 41.16272,
+          "lng": -73.25779
+        }
+      ],
+      "photos": 532945,
+      "note": "No lot is called “Walsh Lot” on the map. G3 is the lot it shows west of the Walsh Athletic Center (60 m from the suggestion); the J lots are east of the building, 140–185 m away."
+    },
+    "dolan-campus-circle": {
+      "records": [
+        {
+          "locationId": 528915,
+          "name": "Dolan (John C.) Hall",
+          "kind": "building",
+          "lat": 41.165836,
+          "lng": -73.260223
+        },
+        {
+          "locationId": 538738,
+          "name": "Dolan (Thomas F.) Commons",
+          "kind": "building",
+          "lat": 41.165375,
+          "lng": -73.259453
+        },
+        {
+          "locationId": 538736,
+          "name": "Dolan (David J.) House",
+          "kind": "building",
+          "lat": 41.165997,
+          "lng": -73.259712
+        },
+        {
+          "locationId": 533041,
+          "name": "H1",
+          "kind": "parking",
+          "lat": 41.165668,
+          "lng": -73.261032
+        },
+        {
+          "locationId": 533042,
+          "name": "H2",
+          "kind": "parking",
+          "lat": 41.165588,
+          "lng": -73.258873
+        }
+      ],
+      "photos": 528915,
+      "note": "Dolan Hall, Dolan Commons and Dolan House are 48–75 m from the suggested loop; the map lists H1 and H2 under “Dolan Campus Parking”. No shuttle stop is marked."
+    },
+    "library-meditz-crosswalk": {
+      "records": [
+        {
+          "locationId": 723370,
+          "name": "DiMenna-Nyselius Library",
+          "kind": "building",
+          "lat": 41.157681,
+          "lng": -73.256004
+        },
+        {
+          "locationId": 938072,
+          "name": "Meditz Hall",
+          "kind": "building",
+          "lat": 41.15823,
+          "lng": -73.25473
+        }
+      ],
+      "photos": 723370,
+      "note": "The suggested crosswalk lies between the library (77 m) and Meditz Hall (89 m) pins. No shuttle stop is marked."
+    },
+    "quick-center-crosswalk": {
+      "records": [
+        {
+          "locationId": 938074,
+          "name": "Quick (Regina A.) Center for the Arts",
+          "kind": "building",
+          "lat": 41.156174,
+          "lng": -73.255463
+        },
+        {
+          "locationId": 1212016,
+          "name": "O1",
+          "kind": "parking",
+          "lat": 41.155758,
+          "lng": -73.254532
+        }
+      ],
+      "photos": 938074,
+      "note": "The suggested crosswalk is 54 m from the Quick Center pin, beside Quick Center Parking lot O1. No shuttle stop is marked."
+    },
+    "dsb-lower-lot-crosswalk": {
+      "records": [
+        {
+          "locationId": 938046,
+          "name": "Charles F. Dolan School of Business",
+          "kind": "building",
+          "lat": 41.156395,
+          "lng": -73.256592
+        },
+        {
+          "locationId": 574381,
+          "name": "Dolan School of Business (Entrance)",
+          "kind": "entrance",
+          "lat": 41.156284,
+          "lng": -73.256844
+        },
+        {
+          "locationId": 533039,
+          "name": "B3",
+          "kind": "parking",
+          "lat": 41.155659,
+          "lng": -73.256416
+        },
+        {
+          "locationId": 1212017,
+          "name": "O2",
+          "kind": "parking",
+          "lat": 41.156727,
+          "lng": -73.25589
+        }
+      ],
+      "photos": 938046,
+      "note": "No lot is called “lower lot” on the map. Lots beside the building: B3 to the south (79 m from the suggestion) and O2 to the north-east (127 m). The suggestion, on the west side, is 33 m from the map’s entrance view point."
+    },
+    "chapel-crosswalk": {
+      "records": [
+        {
+          "locationId": 938055,
+          "name": "Egan Chapel of St. Ignatius Loyola",
+          "kind": "building",
+          "lat": 41.158108,
+          "lng": -73.257774
+        },
+        {
+          "locationId": 574378,
+          "name": "Egan Chapel of Saint Ignatius of Loyola (Plaza)",
+          "kind": "viewpoint",
+          "lat": 41.158176,
+          "lng": -73.258095
+        }
+      ],
+      "photos": 938055,
+      "note": "The suggested crosswalk is 69 m south of the chapel pin and 72 m from the plaza view point. No shuttle stop is marked."
+    },
+    "crosswalk-behind-canisius": {
+      "records": [
+        {
+          "locationId": 528890,
+          "name": "Canisius Hall",
+          "kind": "building",
+          "lat": 41.159203,
+          "lng": -73.259102
+        },
+        {
+          "locationId": 533050,
+          "name": "C4",
+          "kind": "parking",
+          "lat": 41.157833,
+          "lng": -73.259552
+        },
+        {
+          "locationId": 533040,
+          "name": "E1",
+          "kind": "parking",
+          "lat": 41.158722,
+          "lng": -73.260246
+        },
+        {
+          "locationId": 533054,
+          "name": "D1",
+          "kind": "parking",
+          "lat": 41.159119,
+          "lng": -73.259903
+        }
+      ],
+      "photos": 528890,
+      "note": "The suggestion is 130 m south-west of the Canisius Hall pin, beside lot C4. Lots D1 and E1 are on the building’s west side. The map does not say which side is “behind”."
+    },
+    "jogues-health-center": {
+      "records": [
+        {
+          "locationId": 938064,
+          "name": "Jogues Hall",
+          "kind": "building",
+          "lat": 41.161209,
+          "lng": -73.261108
+        },
+        {
+          "locationId": 1097828,
+          "name": "Health & Wellness Center",
+          "kind": "building",
+          "lat": 41.160919,
+          "lng": -73.261391
+        },
+        {
+          "locationId": 533004,
+          "name": "F2",
+          "kind": "parking",
+          "lat": 41.161942,
+          "lng": -73.261261
+        }
+      ],
+      "photos": 938064,
+      "note": "The map places the Health & Wellness Center south-west of Jogues Hall. The suggested crossing is north-east of Jogues (44 m) and 84 m from the Health Center; McCormick Road passes between the two buildings. No shuttle stop is marked."
+    },
+    "campion-crosswalk": {
+      "records": [
+        {
+          "locationId": 938043,
+          "name": "Campion Hall",
+          "kind": "building",
+          "lat": 41.161236,
+          "lng": -73.259727
+        }
+      ],
+      "photos": 938043,
+      "note": "The suggested crosswalk is 47 m north of the Campion Hall pin. No shuttle stop is marked."
+    },
+    "fairfield-green": {
+      "records": [
+        {
+          "locationId": 938249,
+          "name": "Downtown Bookstore",
+          "kind": "building",
+          "lat": 41.140831,
+          "lng": -73.258308
+        }
+      ],
+      "photos": 938249,
+      "note": "The Downtown Bookstore pin is 24 m from the suggestion, consistent with the “near Bookstore” sign. No shuttle stop is marked."
+    },
+    "bellarmine-campus": {
+      "records": [
+        {
+          "locationId": 847239,
+          "name": "Fairfield Bellarmine Campus Center",
+          "kind": "building",
+          "lat": 41.192699,
+          "lng": -73.164833
+        },
+        {
+          "locationId": 834821,
+          "name": "Fairfield Bellarmine Campus",
+          "kind": "campus",
+          "lat": 41.19302,
+          "lng": -73.164635
+        },
+        {
+          "locationId": 1047094,
+          "name": "Fairfield Bellarmine Satellite Parking Lot",
+          "kind": "parking",
+          "lat": 41.191486,
+          "lng": -73.165306
+        }
+      ],
+      "photos": 847239,
+      "note": "The suggestion is 4 m from the Campus Center building pin: a building position, not a known drop-off spot. The map also shows a satellite parking lot 144 m south."
+    },
+    "1720-post-road": {
+      "records": [
+        {
+          "locationId": 1070586,
+          "name": "1720 Post Rd.",
+          "kind": "building",
+          "lat": 41.141418,
+          "lng": -73.261932
+        }
+      ],
+      "photos": 1070586,
+      "note": "The suggestion is 1 m from the building pin: a building position, not a known boarding spot or entrance."
+    }
+  },
+  "unmatched": {
+    "block-17-walkway": "The map has a Townhouse Complex (location 938083) but no block numbers anywhere, so Block 17 is not matched to it.",
+    "block-13-walkway": "The map has a Townhouse Complex (location 938083) but no block numbers anywhere, so Block 13 is not matched to it.",
+    "140-mill-plain-road": "Not on the campus map (searched “Mill Plain” and “140”).",
+    "fairfield-train-station": "Off campus; not on the campus map.",
+    "metro-train-alto": "Off campus; not on the campus map.",
+    "bridgeport-train-station": "Off campus; not on the campus map.",
+    "grasmere-post-rd": "Off campus; not on the campus map.",
+    "whole-foods": "Off campus; not on the campus map.",
+    "stop-and-shop": "Off campus; not on the campus map.",
+    "marshalls-cvs": "Off campus; not on the campus map."
+  }
+}
